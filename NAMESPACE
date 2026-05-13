@@ -1,0 +1,17 @@
+# tinyrox says don't edit this manually, but it can't stop you!
+
+export(mx_accept_invites)
+export(mx_client_config_path)
+export(mx_client_configure)
+export(mx_client_from_config)
+export(mx_client_legacy_config_path)
+export(mx_client_load)
+export(mx_client_save)
+export(mx_client_session)
+export(mx_extract_invites)
+export(mx_extract_reaction_verdict)
+export(mx_extract_text_events)
+export(mx_resolve_room)
+export(mx_room_lookup_by_name)
+export(mx_send_text)
+export(mx_sync_update)

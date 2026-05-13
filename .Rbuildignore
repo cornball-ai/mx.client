@@ -1,0 +1,4 @@
+^\.git$
+^\.github$
+^cran-comments\.md$
+^README\.Rmd$
