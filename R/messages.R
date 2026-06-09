@@ -8,10 +8,13 @@
 #' @param msgtype Character Matrix message type.
 #' @param room_cache Optional room name-to-id cache.
 #' @param dry_run Logical. Print instead of sending.
+#' @param markdown Logical. If TRUE, include Matrix custom HTML derived
+#'   from a conservative markdown subset.
 #' @return Event id, or NULL on dry-run.
 #' @export
 mx_send_text <- function(client, text, room = NULL, msgtype = "m.text",
-                         room_cache = NULL, dry_run = FALSE) {
+                         room_cache = NULL, dry_run = FALSE,
+                         markdown = FALSE) {
     rid <- mx_resolve_room(client, room, room_cache = room_cache)
     if (isTRUE(dry_run)) {
         message(
@@ -20,7 +23,13 @@ mx_send_text <- function(client, text, room = NULL, msgtype = "m.text",
         )
         return(invisible(NULL))
     }
-    mx.api::mx_send(mx_client_session(client), rid, text, msgtype = msgtype)
+    extra <- NULL
+    if (isTRUE(markdown)) {
+        extra <- list(format = "org.matrix.custom.html",
+                      formatted_body = mx_markdown_to_html(text))
+    }
+    mx.api::mx_send(mx_client_session(client), rid, text, msgtype = msgtype,
+                    extra = extra)
 }
 
 #' Sync once and update the stored cursor
