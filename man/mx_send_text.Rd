@@ -4,7 +4,7 @@
 \title{Send plain text to a Matrix room}
 \usage{
 mx_send_text(client, text, room = NULL, msgtype = "m.text", room_cache = NULL,
-             dry_run = FALSE)
+             dry_run = FALSE, markdown = FALSE)
 }
 \arguments{
 \item{client}{Matrix client config.}
@@ -18,6 +18,9 @@ mx_send_text(client, text, room = NULL, msgtype = "m.text", room_cache = NULL,
 \item{room_cache}{Optional room name-to-id cache.}
 
 \item{dry_run}{Logical. Print instead of sending.}
+
+\item{markdown}{Logical. If TRUE, include Matrix custom HTML derived
+from a conservative markdown subset.}
 }
 \value{
 Event id, or NULL on dry-run.
