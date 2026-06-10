@@ -22,6 +22,8 @@ mx_client_envvar <- function(app) {
 #' @param app Character. Application namespace for \code{tools::R_user_dir()}.
 #' @param env_var Character or NULL. Override environment variable name.
 #' @return Character path.
+#' @examples
+#' mx_client_config_path("myapp")
 #' @export
 mx_client_config_path <- function(app = "mx.client", env_var = NULL) {
     env_var <- env_var %||% mx_client_envvar(app)
@@ -39,6 +41,8 @@ mx_client_config_path <- function(app = "mx.client", env_var = NULL) {
 #'
 #' @param app Character. Application namespace.
 #' @return Character path or NULL.
+#' @examples
+#' mx_client_legacy_config_path("corteza")
 #' @export
 mx_client_legacy_config_path <- function(app = "mx.client") {
     if (identical(app, "corteza")) {
