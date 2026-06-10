@@ -101,3 +101,8 @@ if (is.na(old_env)) {
     Sys.setenv(MX_CLIENT_TEST_MATRIX_CONFIG = old_env)
 }
 unlink(tmp, recursive = TRUE)
+
+# mx_room_encrypted: signature (network behavior is live-validated)
+expect_true(is.function(mx.client::mx_room_encrypted))
+expect_equal(names(formals(mx.client::mx_room_encrypted)),
+             c("client", "room", "room_cache"))

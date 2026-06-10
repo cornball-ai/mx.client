@@ -85,3 +85,27 @@ mx_resolve_room <- function(client, room = NULL, room_cache = NULL,
     done(default_room, "fallback")
 }
 
+
+#' Is a room end-to-end encrypted?
+#'
+#' Resolves the room (by name, id, or the config default) and reads its
+#' \code{m.room.encryption} state. Needs mx.api >= 0.3.0.
+#'
+#' @param client Matrix client config.
+#' @param room Character room id/name or NULL for the default room.
+#' @param room_cache Optional room name-to-id cache.
+#' @return TRUE when the room advertises an encryption algorithm,
+#'   FALSE otherwise.
+#' @examples
+#' \dontrun{
+#' if (mx_room_encrypted(client, "secret plans")) {
+#'     # use mx_send_encrypted() instead of mx_send_text()
+#' }
+#' }
+#' @export
+mx_room_encrypted <- function(client, room = NULL, room_cache = NULL) {
+    rid <- mx_resolve_room(client, room, room_cache = room_cache)
+    enc <- mx.api::mx_get_state(mx_client_session(client), rid,
+                                "m.room.encryption")
+    !is.null(enc$algorithm)
+}
