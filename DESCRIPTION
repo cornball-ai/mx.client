@@ -21,7 +21,7 @@ Depends:
     R (>= 4.0)
 Imports:
     jsonlite,
-    mx.api,
+    mx.api (>= 0.3.0),
     tools,
     utils
 Suggests:
