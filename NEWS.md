@@ -18,6 +18,9 @@
   `mx_crypto_decrypt_event()`). A loopback test exercises a full encrypted
   round-trip in-process. Network wiring into `mx_send_text()`/
   `mx_sync_update()` follows.
+* `mx_room_encrypted()` reads a room's `m.room.encryption` state (with
+  the usual name/id/default resolution), so callers can pick the
+  encrypted or plaintext send path before building one.
 * Client-layer media sending: `mx_send_media()` resolves the room by
   name (or default), builds the session from the stored config, and
   uploads + posts in one call via `mx.api::mx_send_media()`.
