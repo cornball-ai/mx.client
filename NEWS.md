@@ -18,4 +18,13 @@
   `mx_crypto_decrypt_event()`). A loopback test exercises a full encrypted
   round-trip in-process. Network wiring into `mx_send_text()`/
   `mx_sync_update()` follows.
+* Client-layer media sending: `mx_send_media()` resolves the room by
+  name (or default), builds the session from the stored config, and
+  uploads + posts in one call via `mx.api::mx_send_media()`.
+* Token-rotation recovery: `mx_client_relogin()` refreshes the access
+  token with the stored password while preserving the device id (so an
+  E2EE device identity survives), and `mx_with_relogin()` wraps any
+  client operation with a one-shot catch-and-retry on
+  `M_UNKNOWN_TOKEN`, using mx.api's classed error conditions. Requires
+  mx.api >= 0.3.0.
 * All exported functions carry examples.

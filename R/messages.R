@@ -201,3 +201,43 @@ mx_extract_reaction_verdict <- function(sync_resp, room_id, self_id,
     NULL
 }
 
+
+#' Send a media file to a Matrix room
+#'
+#' Client-layer wrapper over \code{mx.api::mx_send_media()}: resolves the
+#' room by name (or falls back to the config's default room), builds the
+#' session from the client config, and uploads + posts in one call. The
+#' msgtype is derived from the file's MIME type unless given.
+#'
+#' If you attach mx.api and mx.client together, namespace-qualify -- the
+#' two packages export an \code{mx_send_media} each (session-first there,
+#' client-first here).
+#'
+#' @param client Matrix client config.
+#' @param path Character. Path to the file to upload.
+#' @param room Character room id/name or NULL for the default room.
+#' @param body Character. Message body / filename shown by clients.
+#' @param msgtype Character or NULL. NULL derives it from the MIME type.
+#' @param content_type Character or NULL. MIME type override for files
+#'   whose extension guesses wrong (tempfiles, odd extensions); NULL
+#'   guesses from the extension.
+#' @param info List. Extra fields merged into the media \code{info}.
+#' @param room_cache Optional room name-to-id cache.
+#' @param dry_run Logical. Print instead of uploading/sending.
+#' @return Event id, or NULL on dry-run.
+#' @export
+mx_send_media <- function(client, path, room = NULL, body = basename(path),
+                          msgtype = NULL, content_type = NULL, info = list(),
+                          room_cache = NULL, dry_run = FALSE) {
+    rid <- mx_resolve_room(client, room, room_cache = room_cache)
+    if (isTRUE(dry_run)) {
+        message(
+                "=== mx_send_media (dry-run) [", room %||% "default", "] ===\n",
+                path, " (", content_type %||% mx.api::mx_guess_mime(path), ")"
+        )
+        return(invisible(NULL))
+    }
+    mx.api::mx_send_media(mx_client_session(client), rid, path,
+                          body = body, msgtype = msgtype,
+                          content_type = content_type, info = info)
+}

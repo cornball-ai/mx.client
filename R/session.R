@@ -66,3 +66,66 @@ mx_client_configure <- function(server, user, password, room,
     mx_client_save(out, app = app, path = path)
 }
 
+
+#' Re-login with stored credentials and refresh the saved token
+#'
+#' Uses the password persisted in the client config to obtain a fresh
+#' access token for the \emph{same} device (reusing
+#' \code{client$device_id}, so an E2EE device identity survives the
+#' refresh), then saves the updated config. Typical use is recovering
+#' from an invalidated token; see \code{\link{mx_with_relogin}} for the
+#' catch-and-retry wrapper.
+#'
+#' @param client Matrix client config with \code{password}.
+#' @param save Logical. Persist the refreshed config (default TRUE).
+#' @return The refreshed \code{"mx_client_config"}.
+#' @export
+mx_client_relogin <- function(client, save = TRUE) {
+    if (is.null(client$password) || !nzchar(client$password)) {
+        stop("client config has no stored password to re-login with",
+             call. = FALSE)
+    }
+    s <- mx.api::mx_login(client$server, client$user, client$password,
+                          device_id = client$device_id)
+    refreshed <- mx_client_from_config(
+                                       utils::modifyList(
+            mx_client_plain_list(client),
+            list(token = s$token, user_id = s$user_id,
+                 device_id = s$device_id)
+        ),
+                                       path = attr(client, "path"),
+                                       app = attr(client, "app")
+    )
+    if (isTRUE(save)) {
+        refreshed <- mx_client_save(refreshed)
+    }
+    refreshed
+}
+
+#' Run a client operation, re-logging in once on an expired token
+#'
+#' Calls \code{fn(client)}; if it fails with the server's invalid-token
+#' error (\code{M_UNKNOWN_TOKEN}, signalled as a classed condition by
+#' mx.api >= 0.3.0), re-logs in via \code{\link{mx_client_relogin}} and
+#' retries once with the refreshed client. Any other error propagates.
+#'
+#' @param client Matrix client config with \code{password}.
+#' @param fn Function taking a client config.
+#' @param save Logical. Persist the refreshed config on relogin.
+#' @return \code{fn}'s return value.
+#' @examples
+#' \dontrun{
+#' mx_with_relogin(client, function(cl) {
+#'     mx_send_text(cl, "still here after a token rotation")
+#' })
+#' }
+#' @export
+mx_with_relogin <- function(client, fn, save = TRUE) {
+    tryCatch(
+             fn(client),
+             mx_error_M_UNKNOWN_TOKEN = function(e) {
+        message("mx.client: token rejected; re-logging in")
+        fn(mx_client_relogin(client, save = save))
+    }
+    )
+}
