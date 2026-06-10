@@ -18,3 +18,6 @@ Resolves the config path for an application that uses mx.client. The
 default environment variable is derived from \code{app}; for example,
 \code{app = "corteza"} honors \code{CORTEZA_MATRIX_CONFIG}.
 }
+\examples{
+mx_client_config_path("myapp")
+}

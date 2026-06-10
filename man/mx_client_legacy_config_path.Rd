@@ -15,3 +15,6 @@ Character path or NULL.
 Currently only \code{app = "corteza"} has a historical path:
 \code{~/.corteza/matrix.json}.
 }
+\examples{
+mx_client_legacy_config_path("corteza")
+}
