@@ -44,6 +44,24 @@ res <- mx_sync_update(client, timeout = 30000L)
 msgs <- mx_extract_text_events(res$sync, client$user_id)
 ```
 
+## Media, and surviving token rotation
+
+Both need `mx.api (>= 0.3.0)`, which mx.client now pins.
+
+```r
+# Send a file with the stored client; the room resolves by name and the
+# msgtype comes from the MIME type (a .png posts as m.image).
+mx_send_media(client, "plot.png", room = "general")
+
+# Recover from an invalidated access token without babysitting:
+# catches M_UNKNOWN_TOKEN, re-logs in with the stored password
+# (preserving the device id, so an E2EE identity survives), saves the
+# refreshed token, and retries once.
+mx_with_relogin(client, function(cl) {
+    mx_send_text(cl, "still here after a token rotation")
+})
+```
+
 ## End-to-end encryption
 
 Olm/Megolm send/receive orchestration over `mx.crypto`, aimed at bots

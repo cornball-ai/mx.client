@@ -6,8 +6,8 @@ expect_equal(names(formals(mx_client_relogin)), c("client", "save"))
 expect_equal(names(formals(mx_with_relogin)), c("client", "fn", "save"))
 expect_equal(
   names(formals(mx.client::mx_send_media)),
-  c("client", "path", "room", "body", "msgtype", "info", "room_cache",
-    "dry_run")
+  c("client", "path", "room", "body", "msgtype", "content_type",
+    "info", "room_cache", "dry_run")
 )
 
 cl <- mx_client_from_config(list(server = "https://x", user = "bot",

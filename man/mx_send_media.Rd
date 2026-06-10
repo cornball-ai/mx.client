@@ -4,7 +4,8 @@
 \title{Send a media file to a Matrix room}
 \usage{
 mx_send_media(client, path, room = NULL, body = basename(path), msgtype = NULL,
-              info = list(), room_cache = NULL, dry_run = FALSE)
+              content_type = NULL, info = list(), room_cache = NULL,
+              dry_run = FALSE)
 }
 \arguments{
 \item{client}{Matrix client config.}
@@ -16,6 +17,10 @@ mx_send_media(client, path, room = NULL, body = basename(path), msgtype = NULL,
 \item{body}{Character. Message body / filename shown by clients.}
 
 \item{msgtype}{Character or NULL. NULL derives it from the MIME type.}
+
+\item{content_type}{Character or NULL. MIME type override for files
+whose extension guesses wrong (tempfiles, odd extensions); NULL
+guesses from the extension.}
 
 \item{info}{List. Extra fields merged into the media \code{info}.}
 
