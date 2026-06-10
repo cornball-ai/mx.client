@@ -26,5 +26,7 @@ Imports:
     utils
 Suggests:
     mx.crypto,
+    simplermarkdown,
     tinytest
+VignetteBuilder: simplermarkdown
 Encoding: UTF-8
