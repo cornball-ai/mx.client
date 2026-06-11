@@ -1,3 +1,10 @@
+# mx.client 0.1.0.1 (dev)
+
+* `mx_send_text()` gains a `mentions` argument: adds `m.mentions` user ids
+  (so mentioned users are notified) and rewrites textual `@localpart` /
+  `@localpart:server` into matrix.to pills in the HTML body. New exported
+  helper `mx_pill_mentions()`.
+
 # mx.client 0.1.0
 
 * First release. Stateful client layer over 'mx.api': configuration
