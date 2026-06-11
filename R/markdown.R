@@ -111,13 +111,13 @@ mx_markdown_to_html <- function(text) {
 mx_pill_mentions <- function(html, user_ids) {
     for (uid in user_ids) {
         local <- sub("^@([^:]+):.*$", "\\1", uid)
-        esc <- gsub("([.\\\\^$|()\\[\\]{}*+?])", "\\\\\\1", local)
+        esc <- gsub("([][{}().*+?^$\\\\|])", "\\\\\\1", local)
         pill <- sprintf("<a href=\"https://matrix.to/#/%s\">%s</a>", uid, local)
-        # Full id first so the localpart pass doesn't mangle it; case-
+        # One pass matching @localpart with an optional :server tail -- a
+        # second pass would rescan the @id inside the inserted href. Case-
         # insensitive since people type @Jorge for @jorge.
-        html <- gsub(paste0("@", esc, ":[A-Za-z0-9._-]+"), pill, html,
+        html <- gsub(paste0("@", esc, "(:[A-Za-z0-9._-]+)?\\b"), pill, html,
                      ignore.case = TRUE)
-        html <- gsub(paste0("@", esc, "\\b"), pill, html, ignore.case = TRUE)
     }
     html
 }
