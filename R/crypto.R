@@ -135,19 +135,18 @@ mx_crypto_device_keys <- function(account, user_id, device_id) {
     mx_require_crypto()
     idk <- mx.crypto::mxc_account_identity_keys(account)
     body <- list(
-        user_id = user_id,
-        device_id = device_id,
-        algorithms = list(MX_OLM, MX_MEGOLM),
-        keys = stats::setNames(
-            list(idk$curve25519, idk$ed25519),
-            c(paste0("curve25519:", device_id),
-              paste0("ed25519:", device_id))
+                 user_id = user_id,
+                 device_id = device_id,
+                 algorithms = list(MX_OLM, MX_MEGOLM),
+                 keys = stats::setNames(
+                                        list(idk$curve25519, idk$ed25519),
+                                        c(paste0("curve25519:", device_id), paste0("ed25519:", device_id))
         )
     )
     sig <- mx.crypto::mxc_account_sign(account, mx.api::mx_canonical_json(body))
     body$signatures <- stats::setNames(
-        list(stats::setNames(list(sig), paste0("ed25519:", device_id))),
-        user_id
+                                       list(stats::setNames(list(sig), paste0("ed25519:", device_id))),
+                                       user_id
     )
     body
 }
@@ -180,22 +179,19 @@ mx_crypto_room_key_payload <- function(olm_session, sender_curve25519,
     mx_require_crypto()
     info <- mx.crypto::mxc_megolm_outbound_info(megolm_out)
     room_key <- list(
-        type = "m.room_key",
-        content = list(
-            algorithm = MX_MEGOLM,
-            room_id = room_id,
-            session_id = info$session_id,
-            session_key = info$session_key
-        )
+                     type = "m.room_key",
+                     content = list(algorithm = MX_MEGOLM, room_id = room_id,
+                                    session_id = info$session_id,
+                                    session_key = info$session_key)
     )
     plaintext <- mx.api::mx_canonical_json(room_key)
     ct <- mx.crypto::mxc_olm_encrypt(olm_session, charToRaw(plaintext))
     list(
-        algorithm = MX_OLM,
-        sender_key = sender_curve25519,
-        ciphertext = stats::setNames(
-            list(list(type = ct$type, body = ct$body)),
-            recipient_curve25519
+         algorithm = MX_OLM,
+         sender_key = sender_curve25519,
+         ciphertext = stats::setNames(
+                                      list(list(type = ct$type, body = ct$body)),
+                                      recipient_curve25519
         )
     )
 }
@@ -229,8 +225,8 @@ mx_crypto_handle_to_device <- function(account, my_curve25519, content) {
     }
     sender <- content$sender_key
     if (identical(as.integer(msg$type), 0L)) {
-        res <- mx.crypto::mxc_olm_create_inbound(
-            account, peer_curve25519 = sender, prekey_b64 = msg$body)
+        res <- mx.crypto::mxc_olm_create_inbound(account,
+            peer_curve25519 = sender, prekey_b64 = msg$body)
         plaintext <- rawToChar(res$plaintext)
     } else {
         stop("no established Olm session for a non-prekey to-device message",
@@ -280,13 +276,13 @@ mx_crypto_encrypt_event <- function(megolm_out, content, room_id,
     payload <- list(type = "m.room.message", room_id = room_id,
                     content = content)
     ct <- mx.crypto::mxc_megolm_encrypt(
-        megolm_out, charToRaw(mx.api::mx_canonical_json(payload)))
+                                        megolm_out, charToRaw(mx.api::mx_canonical_json(payload)))
     list(
-        algorithm = MX_MEGOLM,
-        sender_key = sender_curve25519,
-        device_id = device_id,
-        session_id = info$session_id,
-        ciphertext = ct
+         algorithm = MX_MEGOLM,
+         sender_key = sender_curve25519,
+         device_id = device_id,
+         session_id = info$session_id,
+         ciphertext = ct
     )
 }
 
@@ -307,3 +303,4 @@ mx_crypto_decrypt_event <- function(inbound_session, encrypted) {
     res <- mx.crypto::mxc_megolm_decrypt(inbound_session, encrypted$ciphertext)
     jsonlite::fromJSON(rawToChar(res$plaintext), simplifyVector = FALSE)
 }
+

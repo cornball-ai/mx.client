@@ -4,7 +4,7 @@
 \title{Send plain text to a Matrix room}
 \usage{
 mx_send_text(client, text, room = NULL, msgtype = "m.text", room_cache = NULL,
-             dry_run = FALSE, markdown = FALSE)
+             dry_run = FALSE, markdown = FALSE, mentions = NULL)
 }
 \arguments{
 \item{client}{Matrix client config.}
@@ -21,6 +21,13 @@ mx_send_text(client, text, room = NULL, msgtype = "m.text", room_cache = NULL,
 
 \item{markdown}{Logical. If TRUE, include Matrix custom HTML derived
 from a conservative markdown subset.}
+
+\item{mentions}{Character vector of Matrix user ids to mention
+(e.g. \code{"@jorge:cornball.ai"}). Each id is added to the event's
+\code{m.mentions} (so the user is notified) and any textual
+\code{@localpart} in the body becomes a \code{matrix.to} pill in the
+HTML. Implies an HTML formatted body even when \code{markdown} is
+FALSE -- pills only render from HTML.}
 }
 \value{
 Event id, or NULL on dry-run.

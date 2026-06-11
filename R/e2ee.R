@@ -20,8 +20,7 @@
 #' names(s)
 #' @export
 mx_crypto_sessions_new <- function() {
-    list(olm = list(), olm_in = list(),
-         megolm_out = list(), megolm_in = list())
+    list(olm = list(), olm_in = list(), megolm_out = list(), megolm_in = list())
 }
 
 #' Persist a session set to the crypto store
@@ -45,19 +44,19 @@ mx_crypto_sessions_save <- function(sessions, store_dir) {
     dir.create(store_dir, showWarnings = FALSE, recursive = TRUE)
     key <- mx_crypto_key(store_dir)
     blob <- list(
-        olm = lapply(sessions$olm, function(s) {
-            mx.crypto::mxc_olm_session_pickle(s, key)
-        }),
-        olm_in = lapply(sessions$olm_in, function(s) {
-            mx.crypto::mxc_olm_session_pickle(s, key)
-        }),
-        megolm_out = lapply(sessions$megolm_out, function(m) {
-            list(session = mx.crypto::mxc_megolm_outbound_pickle(m$session, key),
-                 shared = as.list(m$shared))
-        }),
-        megolm_in = lapply(sessions$megolm_in, function(s) {
-            mx.crypto::mxc_megolm_inbound_pickle(s, key)
-        })
+                 olm = lapply(sessions$olm, function(s) {
+        mx.crypto::mxc_olm_session_pickle(s, key)
+    }),
+                 olm_in = lapply(sessions$olm_in, function(s) {
+        mx.crypto::mxc_olm_session_pickle(s, key)
+    }),
+                 megolm_out = lapply(sessions$megolm_out, function(m) {
+        list(session = mx.crypto::mxc_megolm_outbound_pickle(m$session, key),
+             shared = as.list(m$shared))
+    }),
+                 megolm_in = lapply(sessions$megolm_in, function(s) {
+        mx.crypto::mxc_megolm_inbound_pickle(s, key)
+    })
     )
     path <- file.path(store_dir, "sessions.json")
     writeLines(jsonlite::toJSON(blob, auto_unbox = TRUE), path)
@@ -97,8 +96,8 @@ mx_crypto_sessions_load <- function(store_dir) {
     for (nm in names(blob$megolm_out %||% list())) {
         m <- blob$megolm_out[[nm]]
         out$megolm_out[[nm]] <- list(
-            session = mx.crypto::mxc_megolm_outbound_unpickle(m$session, key),
-            shared = unlist(m$shared, use.names = FALSE) %||% character())
+                                     session = mx.crypto::mxc_megolm_outbound_unpickle(m$session, key),
+                                     shared = unlist(m$shared, use.names = FALSE) %||% character())
     }
     for (nm in names(blob$megolm_in %||% list())) {
         out$megolm_in[[nm]] <- mx.crypto::mxc_megolm_inbound_unpickle(
@@ -140,9 +139,9 @@ mx_crypto_sessions_load <- function(store_dir) {
 #' }
 #' }
 #' @export
-mx_crypto_encrypt_for_devices <- function(account, sessions, room_id, content,
-                                          sender_curve25519, device_id,
-                                          recipients = list()) {
+mx_crypto_encrypt_for_devices <- function(account, sessions, room_id,
+    content, sender_curve25519,
+    device_id, recipients = list()) {
     mx_require_crypto()
     mo <- sessions$megolm_out[[room_id]]
     if (is.null(mo)) {
@@ -168,7 +167,7 @@ mx_crypto_encrypt_for_devices <- function(account, sessions, room_id, content,
             sessions$olm[[peer]] <- olm
         }
         td <- mx_crypto_room_key_payload(olm, sender_curve25519, peer,
-                                         room_id, mo$session)
+            room_id, mo$session)
         to_device[[length(to_device) + 1L]] <- list(
             user_id = r$user_id, device_id = r$device_id, content = td)
         mo$shared <- c(mo$shared, peer)
@@ -223,8 +222,8 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
         }
         sender <- ev$content$sender_key
         plaintext <- if (identical(as.integer(msg$type), 0L)) {
-            res <- mx.crypto::mxc_olm_create_inbound(
-                account, peer_curve25519 = sender, prekey_b64 = msg$body)
+            res <- mx.crypto::mxc_olm_create_inbound(account,
+                peer_curve25519 = sender, prekey_b64 = msg$body)
             sessions$olm_in[[sender]] <- res$session
             rawToChar(res$plaintext)
         } else {
@@ -277,3 +276,4 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
 
     list(events = events, sessions = sessions)
 }
+

@@ -87,7 +87,7 @@ mx_markdown_to_html <- function(text) {
             next
         }
         out <- c(out, close_lists(), sprintf("<p>%s</p>",
-                                             mx_markdown_inline_html(ln)))
+                mx_markdown_inline_html(ln)))
     }
     out <- c(out, close_lists())
     if (in_pre) {
@@ -95,3 +95,30 @@ mx_markdown_to_html <- function(text) {
     }
     paste(out, collapse = "")
 }
+
+#' Turn textual @mentions into matrix.to pills
+#'
+#' Replaces each occurrence of \code{@localpart} (or the full
+#' \code{@localpart:server} id) in already-rendered HTML with a
+#' \code{matrix.to} anchor, which Matrix clients render as a mention pill.
+#' A user id with no textual occurrence is left to \code{m.mentions} alone,
+#' which still notifies.
+#'
+#' @param html Character HTML (e.g. from \code{\link{mx_markdown_to_html}}).
+#' @param user_ids Character vector of full Matrix user ids.
+#' @return Character HTML with mention pills.
+#' @export
+mx_pill_mentions <- function(html, user_ids) {
+    for (uid in user_ids) {
+        local <- sub("^@([^:]+):.*$", "\\1", uid)
+        esc <- gsub("([][{}().*+?^$\\\\|])", "\\\\\\1", local)
+        pill <- sprintf("<a href=\"https://matrix.to/#/%s\">%s</a>", uid, local)
+        # One pass matching @localpart with an optional :server tail -- a
+        # second pass would rescan the @id inside the inserted href. Case-
+        # insensitive since people type @Jorge for @jorge.
+        html <- gsub(paste0("@", esc, "(:[A-Za-z0-9._-]+)?\\b"), pill, html,
+                     ignore.case = TRUE)
+    }
+    html
+}
+

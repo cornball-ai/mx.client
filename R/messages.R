@@ -10,23 +10,34 @@
 #' @param dry_run Logical. Print instead of sending.
 #' @param markdown Logical. If TRUE, include Matrix custom HTML derived
 #'   from a conservative markdown subset.
+#' @param mentions Character vector of Matrix user ids to mention
+#'   (e.g. \code{"@jorge:cornball.ai"}). Each id is added to the event's
+#'   \code{m.mentions} (so the user is notified) and any textual
+#'   \code{@localpart} in the body becomes a \code{matrix.to} pill in the
+#'   HTML. Implies an HTML formatted body even when \code{markdown} is
+#'   FALSE -- pills only render from HTML.
 #' @return Event id, or NULL on dry-run.
 #' @export
 mx_send_text <- function(client, text, room = NULL, msgtype = "m.text",
                          room_cache = NULL, dry_run = FALSE,
-                         markdown = FALSE) {
+                         markdown = FALSE, mentions = NULL) {
     rid <- mx_resolve_room(client, room, room_cache = room_cache)
     if (isTRUE(dry_run)) {
-        message(
-                "=== mx_send_text (dry-run) [", room %||% "default", "] ===\n",
-                text
-        )
+        message("=== mx_send_text (dry-run) [", room %||% "default",
+                "] ===\n", text)
         return(invisible(NULL))
     }
     extra <- NULL
-    if (isTRUE(markdown)) {
-        extra <- list(format = "org.matrix.custom.html",
-                      formatted_body = mx_markdown_to_html(text))
+    if (isTRUE(markdown) || length(mentions)) {
+        html <- mx_markdown_to_html(text)
+        if (length(mentions)) {
+            html <- mx_pill_mentions(html, mentions)
+        }
+        extra <- list(format = "org.matrix.custom.html", formatted_body = html)
+    }
+    if (length(mentions)) {
+        extra <- c(extra,
+                   list("m.mentions" = list(user_ids = as.list(mentions))))
     }
     mx.api::mx_send(mx_client_session(client), rid, text, msgtype = msgtype,
                     extra = extra)
@@ -49,12 +60,9 @@ mx_send_text <- function(client, text, room = NULL, msgtype = "m.text",
 mx_sync_update <- function(client, timeout = 0L, filter = NULL, save = TRUE,
                            path = NULL, app = NULL) {
     first_run <- is.null(client$sync_token)
-    sync <- mx.api::mx_sync(
-                            mx_client_session(client),
+    sync <- mx.api::mx_sync(mx_client_session(client),
                             since = client$sync_token,
-                            timeout = as.integer(timeout),
-                            filter = filter
-    )
+                            timeout = as.integer(timeout), filter = filter)
     updated <- mx_client_from_config(
                                      mx_client_plain_list(client),
                                      path = path %||% attr(client, "path"),
@@ -93,15 +101,11 @@ mx_extract_text_events <- function(sync_resp, self_id, msgtypes = "m.text") {
             if (isTRUE(ev$type == "m.room.message") &&
                 isTRUE(ev$content$msgtype %in% msgtypes) &&
                 !is.null(ev$content$body)) {
-                out[[length(out) + 1L]] <- list(
-                    room_id = rid,
-                    event_id = ev$event_id,
-                    sender = ev$sender,
+                out[[length(out) + 1L]] <- list(room_id = rid,
+                    event_id = ev$event_id, sender = ev$sender,
                     is_self = isTRUE(ev$sender == self_id),
-                    body = ev$content$body,
-                    msgtype = ev$content$msgtype,
-                    mentions = ev$content$`m.mentions`$user_ids
-                )
+                    body = ev$content$body, msgtype = ev$content$msgtype,
+                    mentions = ev$content$`m.mentions`$user_ids)
             }
         }
     }
@@ -137,8 +141,8 @@ mx_accept_invites <- function(client, invites) {
         out <- tryCatch(
                         mx.api::mx_room_join(s, rid),
                         error = function(e) {
-            message(sprintf("mx.client: failed to join %s: %s",
-                            rid, conditionMessage(e)))
+            message(sprintf("mx.client: failed to join %s: %s", rid,
+                            conditionMessage(e)))
             NULL
         }
         )
@@ -201,7 +205,6 @@ mx_extract_reaction_verdict <- function(sync_resp, room_id, self_id,
     NULL
 }
 
-
 #' Send a media file to a Matrix room
 #'
 #' Client-layer wrapper over \code{mx.api::mx_send_media()}: resolves the
@@ -231,13 +234,13 @@ mx_send_media <- function(client, path, room = NULL, body = basename(path),
                           room_cache = NULL, dry_run = FALSE) {
     rid <- mx_resolve_room(client, room, room_cache = room_cache)
     if (isTRUE(dry_run)) {
-        message(
-                "=== mx_send_media (dry-run) [", room %||% "default", "] ===\n",
-                path, " (", content_type %||% mx.api::mx_guess_mime(path), ")"
-        )
+        message("=== mx_send_media (dry-run) [", room %||% "default",
+                "] ===\n", path, " (",
+                content_type %||% mx.api::mx_guess_mime(path), ")")
         return(invisible(NULL))
     }
     mx.api::mx_send_media(mx_client_session(client), rid, path,
                           body = body, msgtype = msgtype,
                           content_type = content_type, info = info)
 }
+

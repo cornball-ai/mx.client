@@ -62,12 +62,8 @@ mx_client_from_config <- function(cfg, path = NULL, app = NULL) {
     if (!is.list(cfg)) {
         stop("cfg must be a list", call. = FALSE)
     }
-    structure(
-              cfg,
-              class = unique(c("mx_client_config", class(cfg))),
-              path = path,
-              app = app
-    )
+    structure(cfg, class = unique(c("mx_client_config", class(cfg))),
+              path = path, app = app)
 }
 
 mx_client_plain_list <- function(client) {
