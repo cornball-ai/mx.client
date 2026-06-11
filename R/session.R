@@ -13,8 +13,8 @@ mx_client_session <- function(client) {
         nzchar(client[[x]])
     }, logical(1))]
     if (length(missing)) {
-        stop("client config missing fields: ", paste(missing, collapse = ", "),
-             call. = FALSE)
+        stop("client config missing fields: ",
+             paste(missing, collapse = ", "), call. = FALSE)
     }
     mx.api::mx_session(
                        server = client$server,
@@ -49,23 +49,15 @@ mx_client_configure <- function(server, user, password, room,
     }
     s <- mx.api::mx_login(server, user, password, device_id = device_id)
     room_id <- mx.api::mx_room_join(s, room)
-    cfg <- list(
-                server = server,
-                user = user,
-                password = password,
-                token = s$token,
-                user_id = s$user_id,
-                device_id = s$device_id,
-                room_id = room_id,
-                sync_token = NULL
-    )
+    cfg <- list(server = server, user = user, password = password,
+                token = s$token, user_id = s$user_id,
+                device_id = s$device_id, room_id = room_id, sync_token = NULL)
     if (length(extra)) {
         cfg <- utils::modifyList(cfg, extra)
     }
     out <- mx_client_from_config(cfg, path = path, app = app)
     mx_client_save(out, app = app, path = path)
 }
-
 
 #' Re-login with stored credentials and refresh the saved token
 #'
@@ -90,8 +82,7 @@ mx_client_relogin <- function(client, save = TRUE) {
     refreshed <- mx_client_from_config(
                                        utils::modifyList(
             mx_client_plain_list(client),
-            list(token = s$token, user_id = s$user_id,
-                 device_id = s$device_id)
+            list(token = s$token, user_id = s$user_id, device_id = s$device_id)
         ),
                                        path = attr(client, "path"),
                                        app = attr(client, "app")
@@ -129,3 +120,4 @@ mx_with_relogin <- function(client, fn, save = TRUE) {
     }
     )
 }
+

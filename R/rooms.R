@@ -85,7 +85,6 @@ mx_resolve_room <- function(client, room = NULL, room_cache = NULL,
     done(default_room, "fallback")
 }
 
-
 #' Is a room end-to-end encrypted?
 #'
 #' Resolves the room (by name, id, or the config default) and reads its
@@ -109,3 +108,4 @@ mx_room_encrypted <- function(client, room = NULL, room_cache = NULL) {
                                 "m.room.encryption")
     !is.null(enc$algorithm)
 }
+

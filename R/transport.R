@@ -8,8 +8,8 @@ mx_crypto_sign_otk <- function(account, key, user_id, device_id) {
     obj <- list(key = key)
     sig <- mx.crypto::mxc_account_sign(account, mx.api::mx_canonical_json(obj))
     obj$signatures <- stats::setNames(
-        list(stats::setNames(list(sig), paste0("ed25519:", device_id))),
-        user_id)
+                                      list(stats::setNames(list(sig), paste0("ed25519:", device_id))),
+                                      user_id)
     obj
 }
 
@@ -40,11 +40,11 @@ mx_crypto_publish_keys <- function(client, account, store_dir, n_otks = 50L) {
     mx.crypto::mxc_account_generate_one_time_keys(account, as.integer(n_otks))
     otks <- mx.crypto::mxc_account_one_time_keys(account)
     signed <- stats::setNames(
-        lapply(names(otks), function(id) {
-            mx_crypto_sign_otk(account, otks[[id]], client$user_id,
-                               client$device_id)
-        }),
-        paste0("signed_curve25519:", names(otks)))
+                              lapply(names(otks), function(id) {
+        mx_crypto_sign_otk(account, otks[[id]], client$user_id,
+                           client$device_id)
+    }),
+                              paste0("signed_curve25519:", names(otks)))
     resp <- mx.api::mx_keys_upload(s, device_keys = dk, one_time_keys = signed)
     mx.crypto::mxc_account_mark_published(account)
     mx_crypto_account_save(account, store_dir)
@@ -74,9 +74,7 @@ mx_crypto_known_devices <- function(client, user_ids) {
     for (uid in names(dk)) {
         for (dev in names(dk[[uid]])) {
             keys <- dk[[uid]][[dev]]$keys
-            out[[length(out) + 1L]] <- list(
-                user_id = uid,
-                device_id = dev,
+            out[[length(out) + 1L]] <- list(user_id = uid, device_id = dev,
                 curve25519 = keys[[paste0("curve25519:", dev)]],
                 ed25519 = keys[[paste0("ed25519:", dev)]])
         }
@@ -107,8 +105,7 @@ mx_crypto_claim_otks <- function(client, devices) {
     req <- list()
     for (d in devices) {
         req[[d$user_id]] <- c(req[[d$user_id]] %||% list(),
-                              stats::setNames(list("signed_curve25519"),
-                                              d$device_id))
+                              stats::setNames(list("signed_curve25519"), d$device_id))
     }
     resp <- mx.api::mx_keys_claim(s, one_time_keys = req)
     claimed <- resp$one_time_keys %||% list()
@@ -148,8 +145,7 @@ mx_crypto_claim_otks <- function(client, devices) {
 #' }
 #' @export
 mx_send_encrypted <- function(client, account, sessions, room_id, content,
-                              store_dir, recipients = NULL,
-                              member_ids = NULL) {
+                              store_dir, recipients = NULL, member_ids = NULL) {
     mx_require_crypto()
     s <- mx_client_session(client)
     sender_curve <- mx.crypto::mxc_account_identity_keys(account)$curve25519
@@ -159,23 +155,22 @@ mx_send_encrypted <- function(client, account, sessions, room_id, content,
         # skip our own device; claim OTKs only where no Olm session exists
         devs <- Filter(function(d) {
             !identical(d$device_id, client$device_id) &&
-                !is.null(d$curve25519) && nzchar(d$curve25519)
+            !is.null(d$curve25519) && nzchar(d$curve25519)
         }, devs)
         need <- Filter(function(d) is.null(sessions$olm[[d$curve25519]]), devs)
         have <- Filter(function(d) !is.null(sessions$olm[[d$curve25519]]), devs)
         recipients <- c(mx_crypto_claim_otks(client, need), have)
     }
 
-    out <- mx_crypto_encrypt_for_devices(account, sessions, room_id, content,
-                                         sender_curve, client$device_id,
-                                         recipients = recipients)
+    out <- mx_crypto_encrypt_for_devices(account, sessions, room_id,
+        content, sender_curve, client$device_id, recipients = recipients)
     for (p in out$to_device) {
         messages <- stats::setNames(
-            list(stats::setNames(list(p$content), p$device_id)), p$user_id)
+                                    list(stats::setNames(list(p$content), p$device_id)), p$user_id)
         mx.api::mx_send_to_device(s, "m.room.encrypted", messages)
     }
-    event_id <- mx.api::mx_send_event(s, room_id, "m.room.encrypted",
-                                      out$event)
+    event_id <- mx.api::mx_send_event(s, room_id, "m.room.encrypted", out$event)
     mx_crypto_sessions_save(out$sessions, store_dir)
     list(event_id = event_id, sessions = out$sessions)
 }
+

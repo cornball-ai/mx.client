@@ -87,7 +87,7 @@ mx_markdown_to_html <- function(text) {
             next
         }
         out <- c(out, close_lists(), sprintf("<p>%s</p>",
-                                             mx_markdown_inline_html(ln)))
+                mx_markdown_inline_html(ln)))
     }
     out <- c(out, close_lists())
     if (in_pre) {
@@ -112,14 +112,13 @@ mx_pill_mentions <- function(html, user_ids) {
     for (uid in user_ids) {
         local <- sub("^@([^:]+):.*$", "\\1", uid)
         esc <- gsub("([.\\\\^$|()\\[\\]{}*+?])", "\\\\\\1", local)
-        pill <- sprintf("<a href=\"https://matrix.to/#/%s\">%s</a>",
-                        uid, local)
+        pill <- sprintf("<a href=\"https://matrix.to/#/%s\">%s</a>", uid, local)
         # Full id first so the localpart pass doesn't mangle it; case-
         # insensitive since people type @Jorge for @jorge.
         html <- gsub(paste0("@", esc, ":[A-Za-z0-9._-]+"), pill, html,
                      ignore.case = TRUE)
-        html <- gsub(paste0("@", esc, "\\b"), pill, html,
-                     ignore.case = TRUE)
+        html <- gsub(paste0("@", esc, "\\b"), pill, html, ignore.case = TRUE)
     }
     html
 }
+
