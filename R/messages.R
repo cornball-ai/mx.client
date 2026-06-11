@@ -10,11 +10,17 @@
 #' @param dry_run Logical. Print instead of sending.
 #' @param markdown Logical. If TRUE, include Matrix custom HTML derived
 #'   from a conservative markdown subset.
+#' @param mentions Character vector of Matrix user ids to mention
+#'   (e.g. \code{"@jorge:cornball.ai"}). Each id is added to the event's
+#'   \code{m.mentions} (so the user is notified) and any textual
+#'   \code{@localpart} in the body becomes a \code{matrix.to} pill in the
+#'   HTML. Implies an HTML formatted body even when \code{markdown} is
+#'   FALSE -- pills only render from HTML.
 #' @return Event id, or NULL on dry-run.
 #' @export
 mx_send_text <- function(client, text, room = NULL, msgtype = "m.text",
                          room_cache = NULL, dry_run = FALSE,
-                         markdown = FALSE) {
+                         markdown = FALSE, mentions = NULL) {
     rid <- mx_resolve_room(client, room, room_cache = room_cache)
     if (isTRUE(dry_run)) {
         message(
@@ -24,9 +30,17 @@ mx_send_text <- function(client, text, room = NULL, msgtype = "m.text",
         return(invisible(NULL))
     }
     extra <- NULL
-    if (isTRUE(markdown)) {
+    if (isTRUE(markdown) || length(mentions)) {
+        html <- mx_markdown_to_html(text)
+        if (length(mentions)) {
+            html <- mx_pill_mentions(html, mentions)
+        }
         extra <- list(format = "org.matrix.custom.html",
-                      formatted_body = mx_markdown_to_html(text))
+                      formatted_body = html)
+    }
+    if (length(mentions)) {
+        extra <- c(extra,
+                   list("m.mentions" = list(user_ids = as.list(mentions))))
     }
     mx.api::mx_send(mx_client_session(client), rid, text, msgtype = msgtype,
                     extra = extra)
