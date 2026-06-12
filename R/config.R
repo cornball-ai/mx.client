@@ -57,6 +57,12 @@ mx_client_legacy_config_path <- function(app = "mx.client") {
 #' @param path Character or NULL. Source/sink path for saves.
 #' @param app Character or NULL. Application namespace.
 #' @return An object of class \code{"mx_client_config"}.
+#' @examples
+#' cfg <- mx_client_from_config(list(server = "https://matrix.example.org",
+#'                                   token = "syt_example",
+#'                                   user_id = "@bot:example.org",
+#'                                   device_id = "DEVICEID"))
+#' class(cfg)
 #' @export
 mx_client_from_config <- function(cfg, path = NULL, app = NULL) {
     if (!is.list(cfg)) {
@@ -84,6 +90,15 @@ mx_client_plain_list <- function(client) {
 #' @param legacy_path Character or NULL. Backward-compatible fallback path.
 #' @param env_var Character or NULL. Override environment variable name.
 #' @return An \code{"mx_client_config"} object.
+#' @examples
+#' path <- file.path(tempdir(), "matrix.json")
+#' cfg <- mx_client_from_config(list(server = "https://matrix.example.org",
+#'                                   token = "syt_example",
+#'                                   user_id = "@bot:example.org",
+#'                                   device_id = "DEVICEID"))
+#' mx_client_save(cfg, path = path)
+#' mx_client_load(path = path)$user_id
+#' unlink(path)
 #' @export
 mx_client_load <- function(app = "mx.client", path = NULL,
                            legacy_path = mx_client_legacy_config_path(app),
@@ -122,6 +137,14 @@ mx_client_load <- function(app = "mx.client", path = NULL,
 #' @param app Character or NULL. Application namespace.
 #' @param path Character or NULL. Destination path.
 #' @return The saved config, invisibly.
+#' @examples
+#' path <- file.path(tempdir(), "matrix.json")
+#' mx_client_save(list(server = "https://matrix.example.org",
+#'                     token = "syt_example",
+#'                     user_id = "@bot:example.org",
+#'                     device_id = "DEVICEID"),
+#'                path = path)
+#' unlink(path)
 #' @export
 mx_client_save <- function(client, app = NULL, path = NULL) {
     app <- app %||% attr(client, "app") %||% "mx.client"
@@ -133,4 +156,3 @@ mx_client_save <- function(client, app = NULL, path = NULL) {
     Sys.chmod(path, mode = "0600")
     invisible(mx_client_from_config(cfg, path = path, app = app))
 }
-

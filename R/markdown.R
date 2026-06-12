@@ -22,6 +22,8 @@ mx_markdown_inline_html <- function(x) {
 #'
 #' @param text Character markdown body.
 #' @return Character HTML suitable for m.room.message formatted_body.
+#' @examples
+#' mx_markdown_to_html("# Status\n- built\n- checked\n\nShip `0.1.0` **soon**")
 #' @export
 mx_markdown_to_html <- function(text) {
     lines <- strsplit(text %||% "", "\n", fixed = TRUE)[[1]]
@@ -107,6 +109,8 @@ mx_markdown_to_html <- function(text) {
 #' @param html Character HTML (e.g. from \code{\link{mx_markdown_to_html}}).
 #' @param user_ids Character vector of full Matrix user ids.
 #' @return Character HTML with mention pills.
+#' @examples
+#' mx_pill_mentions("<p>ping @jorge</p>", "@jorge:example.org")
 #' @export
 mx_pill_mentions <- function(html, user_ids) {
     for (uid in user_ids) {
@@ -121,4 +125,3 @@ mx_pill_mentions <- function(html, user_ids) {
     }
     html
 }
-

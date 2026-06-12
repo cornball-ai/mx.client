@@ -4,6 +4,13 @@
   (so mentioned users are notified) and rewrites textual `@localpart` /
   `@localpart:server` into matrix.to pills in the HTML body. New exported
   helper `mx_pill_mentions()`.
+* CRAN pre-submission pass: every exported function now has an example
+  (runnable where no homeserver is needed, `\dontrun{}` otherwise, and the
+  local crypto-store examples moved from `\dontrun{}` to guarded
+  `\donttest{}`); added the `_PACKAGE` doc page; declared `stats` in
+  Imports; tests redirect the `tools::R_user_dir()` roots to tempdir;
+  `.claude` excluded from the build; the mx.crypto install hint now points
+  at CRAN.
 
 # mx.client 0.1.0
 
