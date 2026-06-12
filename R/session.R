@@ -5,6 +5,12 @@
 #' @param client Named list or \code{"mx_client_config"} with \code{server},
 #'   \code{token}, \code{user_id}, and \code{device_id}.
 #' @return An \code{"mx_session"} from \pkg{mx.api}.
+#' @examples
+#' s <- mx_client_session(list(server = "https://matrix.example.org",
+#'                             token = "syt_example",
+#'                             user_id = "@bot:example.org",
+#'                             device_id = "DEVICEID"))
+#' class(s)
 #' @export
 mx_client_session <- function(client) {
     required <- c("server", "token", "user_id", "device_id")
@@ -40,6 +46,12 @@ mx_client_session <- function(client) {
 #' @param device_id Character or NULL. Existing device id to reuse.
 #' @param extra Named list. Additional fields to save.
 #' @return Saved \code{"mx_client_config"}, invisibly.
+#' @examples
+#' \dontrun{
+#' # Needs a live homeserver and account credentials.
+#' mx_client_configure("https://matrix.example.org", "bot", "secret",
+#'                     room = "#general:example.org", app = "myapp")
+#' }
 #' @export
 mx_client_configure <- function(server, user, password, room,
                                 app = "mx.client", path = NULL,
@@ -71,6 +83,11 @@ mx_client_configure <- function(server, user, password, room,
 #' @param client Matrix client config with \code{password}.
 #' @param save Logical. Persist the refreshed config (default TRUE).
 #' @return The refreshed \code{"mx_client_config"}.
+#' @examples
+#' \dontrun{
+#' # Needs a live homeserver and a stored password.
+#' client <- mx_client_relogin(mx_client_load("myapp"))
+#' }
 #' @export
 mx_client_relogin <- function(client, save = TRUE) {
     if (is.null(client$password) || !nzchar(client$password)) {
@@ -120,4 +137,3 @@ mx_with_relogin <- function(client, fn, save = TRUE) {
     }
     )
 }
-

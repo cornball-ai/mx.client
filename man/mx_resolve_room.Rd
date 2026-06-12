@@ -28,3 +28,11 @@ literal room IDs beginning with \code{!}, a supplied \code{room_cache}
 name-to-id map, joined-room display-name lookup, then the config's
 \code{room_id} fallback.
 }
+\examples{
+client <- list(room_id = "!default:example.org")
+# Literal ids and cache hits resolve without a server round-trip:
+mx_resolve_room(client, "!abc:example.org")
+mx_resolve_room(client, "general",
+                room_cache = list(general = "!gen:example.org"))
+mx_resolve_room(client) # NULL room falls back to the config default
+}

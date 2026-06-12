@@ -21,3 +21,9 @@ refresh), then saves the updated config. Typical use is recovering
 from an invalidated token; see \code{\link{mx_with_relogin}} for the
 catch-and-retry wrapper.
 }
+\examples{
+\dontrun{
+# Needs a live homeserver and a stored password.
+client <- mx_client_relogin(mx_client_load("myapp"))
+}
+}

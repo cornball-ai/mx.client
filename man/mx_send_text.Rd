@@ -35,3 +35,13 @@ Event id, or NULL on dry-run.
 \description{
 Send plain text to a Matrix room
 }
+\examples{
+client <- list(room_id = "!default:example.org")
+mx_send_text(client, "release is out", dry_run = TRUE)
+\dontrun{
+# A real send needs a live homeserver session:
+client <- mx_client_load("myapp")
+mx_send_text(client, "release is out", markdown = TRUE,
+             mentions = "@jorge:example.org")
+}
+}

@@ -5,6 +5,11 @@
 #' @param client Matrix client config.
 #' @param name Character room name.
 #' @return Room id, or NULL when no joined room has that name.
+#' @examples
+#' \dontrun{
+#' # Needs a live homeserver session.
+#' mx_room_lookup_by_name(mx_client_load("myapp"), "general")
+#' }
 #' @export
 mx_room_lookup_by_name <- function(client, name) {
     if (!is.character(name) || length(name) != 1L || !nzchar(name)) {
@@ -35,6 +40,13 @@ mx_room_lookup_by_name <- function(client, name) {
 #' @param details Logical. Return source metadata instead of just the id.
 #' @param quiet Logical. Suppress fallback message.
 #' @return Character room id, or a list when \code{details = TRUE}.
+#' @examples
+#' client <- list(room_id = "!default:example.org")
+#' # Literal ids and cache hits resolve without a server round-trip:
+#' mx_resolve_room(client, "!abc:example.org")
+#' mx_resolve_room(client, "general",
+#'                 room_cache = list(general = "!gen:example.org"))
+#' mx_resolve_room(client) # NULL room falls back to the config default
 #' @export
 mx_resolve_room <- function(client, room = NULL, room_cache = NULL,
                             fallback = TRUE, details = FALSE, quiet = FALSE) {
@@ -108,4 +120,3 @@ mx_room_encrypted <- function(client, room = NULL, room_cache = NULL) {
                                 "m.room.encryption")
     !is.null(enc$algorithm)
 }
-

@@ -17,6 +17,15 @@
 #'   HTML. Implies an HTML formatted body even when \code{markdown} is
 #'   FALSE -- pills only render from HTML.
 #' @return Event id, or NULL on dry-run.
+#' @examples
+#' client <- list(room_id = "!default:example.org")
+#' mx_send_text(client, "release is out", dry_run = TRUE)
+#' \dontrun{
+#' # A real send needs a live homeserver session:
+#' client <- mx_client_load("myapp")
+#' mx_send_text(client, "release is out", markdown = TRUE,
+#'              mentions = "@jorge:example.org")
+#' }
 #' @export
 mx_send_text <- function(client, text, room = NULL, msgtype = "m.text",
                          room_cache = NULL, dry_run = FALSE,
@@ -56,6 +65,13 @@ mx_send_text <- function(client, text, room = NULL, msgtype = "m.text",
 #' @param path Character or NULL. Save destination.
 #' @param app Character or NULL. Application namespace for default saves.
 #' @return List with \code{sync}, \code{client}, and \code{first_run}.
+#' @examples
+#' \dontrun{
+#' # Needs a live homeserver session.
+#' client <- mx_client_load("myapp")
+#' res <- mx_sync_update(client, timeout = 30000L)
+#' events <- mx_extract_text_events(res$sync, client$user_id)
+#' }
 #' @export
 mx_sync_update <- function(client, timeout = 0L, filter = NULL, save = TRUE,
                            path = NULL, app = NULL) {
@@ -84,6 +100,12 @@ mx_sync_update <- function(client, timeout = 0L, filter = NULL, save = TRUE,
 #' @param self_id Current user's Matrix id.
 #' @param msgtypes Character vector of message types to include.
 #' @return List of normalized event records.
+#' @examples
+#' sync_resp <- list(rooms = list(join = list("!room:example.org" = list(
+#'     timeline = list(events = list(list(type = "m.room.message",
+#'         event_id = "$1", sender = "@alice:example.org",
+#'         content = list(msgtype = "m.text", body = "hello"))))))))
+#' mx_extract_text_events(sync_resp, self_id = "@bot:example.org")
 #' @export
 mx_extract_text_events <- function(sync_resp, self_id, msgtypes = "m.text") {
     joined <- sync_resp$rooms$join
@@ -116,6 +138,9 @@ mx_extract_text_events <- function(sync_resp, self_id, msgtypes = "m.text") {
 #'
 #' @param sync_resp Parsed \code{/sync} response.
 #' @return Character vector of invited room ids.
+#' @examples
+#' sync_resp <- list(rooms = list(invite = list("!inv:example.org" = list())))
+#' mx_extract_invites(sync_resp)
 #' @export
 mx_extract_invites <- function(sync_resp) {
     invited <- sync_resp$rooms$invite
@@ -130,6 +155,13 @@ mx_extract_invites <- function(sync_resp) {
 #' @param client Matrix client config.
 #' @param invites Character vector of room ids.
 #' @return Character vector of joined room ids.
+#' @examples
+#' \dontrun{
+#' # Needs a live homeserver session.
+#' client <- mx_client_load("myapp")
+#' res <- mx_sync_update(client)
+#' mx_accept_invites(res$client, mx_extract_invites(res$sync))
+#' }
 #' @export
 mx_accept_invites <- function(client, invites) {
     if (!length(invites)) {
@@ -166,6 +198,15 @@ mx_accept_invites <- function(client, invites) {
 #' @param approve_keys Character vector.
 #' @param deny_keys Character vector.
 #' @return TRUE, FALSE, or NULL.
+#' @examples
+#' sync_resp <- list(rooms = list(join = list("!room:example.org" = list(
+#'     timeline = list(events = list(list(type = "m.reaction",
+#'         sender = "@alice:example.org",
+#'         content = list("m.relates_to" = list(rel_type = "m.annotation",
+#'             event_id = "$msg", key = "yes")))))))))
+#' mx_extract_reaction_verdict(sync_resp, "!room:example.org",
+#'                             self_id = "@bot:example.org",
+#'                             target_event_id = "$msg")
 #' @export
 mx_extract_reaction_verdict <- function(sync_resp, room_id, self_id,
                                         target_event_id,
@@ -228,6 +269,12 @@ mx_extract_reaction_verdict <- function(sync_resp, room_id, self_id,
 #' @param room_cache Optional room name-to-id cache.
 #' @param dry_run Logical. Print instead of uploading/sending.
 #' @return Event id, or NULL on dry-run.
+#' @examples
+#' client <- list(room_id = "!default:example.org")
+#' png <- file.path(tempdir(), "plot.png")
+#' file.create(png)
+#' mx_send_media(client, png, dry_run = TRUE)
+#' unlink(png)
 #' @export
 mx_send_media <- function(client, path, room = NULL, body = basename(path),
                           msgtype = NULL, content_type = NULL, info = list(),
@@ -243,4 +290,3 @@ mx_send_media <- function(client, path, room = NULL, body = basename(path),
                           body = body, msgtype = msgtype,
                           content_type = content_type, info = info)
 }
-

@@ -18,3 +18,10 @@ An object of class \code{"mx_client_config"}.
 \description{
 Wrap a list as an mx.client config
 }
+\examples{
+cfg <- mx_client_from_config(list(server = "https://matrix.example.org",
+                                  token = "syt_example",
+                                  user_id = "@bot:example.org",
+                                  device_id = "DEVICEID"))
+class(cfg)
+}

@@ -28,3 +28,13 @@ Scans a room timeline for a reaction on \code{target_event_id} from
 someone other than \code{self_id}. Returns TRUE for approval keys,
 FALSE for denial keys, or NULL when no verdict is present.
 }
+\examples{
+sync_resp <- list(rooms = list(join = list("!room:example.org" = list(
+    timeline = list(events = list(list(type = "m.reaction",
+        sender = "@alice:example.org",
+        content = list("m.relates_to" = list(rel_type = "m.annotation",
+            event_id = "$msg", key = "yes")))))))))
+mx_extract_reaction_verdict(sync_resp, "!room:example.org",
+                            self_id = "@bot:example.org",
+                            target_event_id = "$msg")
+}

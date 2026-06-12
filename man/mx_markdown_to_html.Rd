@@ -15,3 +15,6 @@ Character HTML suitable for m.room.message formatted_body.
 Supports headings, bullets, numbered lists, fenced code blocks, inline
 code, bold, and simple underscore emphasis.
 }
+\examples{
+mx_markdown_to_html("# Status\n- built\n- checked\n\nShip `0.1.0` **soon**")
+}

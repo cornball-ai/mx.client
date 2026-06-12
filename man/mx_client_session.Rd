@@ -15,3 +15,10 @@ An \code{"mx_session"} from \pkg{mx.api}.
 \description{
 Build an mx.api session from a client config
 }
+\examples{
+s <- mx_client_session(list(server = "https://matrix.example.org",
+                            token = "syt_example",
+                            user_id = "@bot:example.org",
+                            device_id = "DEVICEID"))
+class(s)
+}

@@ -23,3 +23,13 @@ Reads a JSON config. If \code{path} or the derived environment variable
 is explicit, that path is authoritative. Otherwise \code{legacy_path}
 is used as a compatibility fallback when present.
 }
+\examples{
+path <- file.path(tempdir(), "matrix.json")
+cfg <- mx_client_from_config(list(server = "https://matrix.example.org",
+                                  token = "syt_example",
+                                  user_id = "@bot:example.org",
+                                  device_id = "DEVICEID"))
+mx_client_save(cfg, path = path)
+mx_client_load(path = path)$user_id
+unlink(path)
+}

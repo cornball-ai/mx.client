@@ -12,9 +12,8 @@ MX_OLM <- "m.olm.v1.curve25519-aes-sha2"
 
 mx_require_crypto <- function() {
     if (!requireNamespace("mx.crypto", quietly = TRUE)) {
-        stop("End-to-end encryption requires the 'mx.crypto' package ",
-             "(a Rust toolchain is needed to build it). Install it from ",
-             "the cornball-ai GitHub mirror.", call. = FALSE)
+        stop("End-to-end encryption requires the 'mx.crypto' package. ",
+             "Install it from CRAN before calling this again.", call. = FALSE)
     }
 }
 
@@ -75,8 +74,12 @@ mx_crypto_random_bytes <- function(n) {
 #' @param store_dir Character. Crypto store directory.
 #' @return An mx.crypto account handle.
 #' @examples
-#' \dontrun{
-#' acct <- mx_crypto_account(mx_crypto_store_dir("corteza"))
+#' \donttest{
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'   store <- mx_crypto_store_dir("myapp", path = tempfile())
+#'   acct <- mx_crypto_account(store)
+#'   unlink(store, recursive = TRUE)
+#' }
 #' }
 #' @export
 mx_crypto_account <- function(store_dir) {
@@ -99,8 +102,13 @@ mx_crypto_account <- function(store_dir) {
 #' @param store_dir Character. Crypto store directory.
 #' @return The pickle path, invisibly.
 #' @examples
-#' \dontrun{
-#' mx_crypto_account_save(acct, mx_crypto_store_dir("corteza"))
+#' \donttest{
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'   store <- mx_crypto_store_dir("myapp", path = tempfile())
+#'   acct <- mx_crypto_account(store)
+#'   mx_crypto_account_save(acct, store)
+#'   unlink(store, recursive = TRUE)
+#' }
 #' }
 #' @export
 mx_crypto_account_save <- function(account, store_dir) {
@@ -126,8 +134,16 @@ mx_crypto_account_save <- function(account, store_dir) {
 #' @param device_id Character. This device's id.
 #' @return A named list ready to upload.
 #' @examples
+#' \donttest{
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'   store <- mx_crypto_store_dir("myapp", path = tempfile())
+#'   acct <- mx_crypto_account(store)
+#'   dk <- mx_crypto_device_keys(acct, "@bot:example.org", "DEVICEID")
+#'   unlink(store, recursive = TRUE)
+#' }
+#' }
 #' \dontrun{
-#' dk <- mx_crypto_device_keys(acct, "@bot:example.org", "DEVICEID")
+#' # Uploading needs a live homeserver session:
 #' mx.api::mx_keys_upload(session, device_keys = dk)
 #' }
 #' @export
@@ -303,4 +319,3 @@ mx_crypto_decrypt_event <- function(inbound_session, encrypted) {
     res <- mx.crypto::mxc_megolm_decrypt(inbound_session, encrypted$ciphertext)
     jsonlite::fromJSON(rawToChar(res$plaintext), simplifyVector = FALSE)
 }
-

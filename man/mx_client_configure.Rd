@@ -32,3 +32,10 @@ a reusable local config. Extra fields are merged into the saved config
 so applications can persist their own defaults without reimplementing
 login.
 }
+\examples{
+\dontrun{
+# Needs a live homeserver and account credentials.
+mx_client_configure("https://matrix.example.org", "bot", "secret",
+                    room = "#general:example.org", app = "myapp")
+}
+}

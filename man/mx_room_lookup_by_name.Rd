@@ -16,3 +16,9 @@ Room id, or NULL when no joined room has that name.
 \description{
 Look up a joined room by display name
 }
+\examples{
+\dontrun{
+# Needs a live homeserver session.
+mx_room_lookup_by_name(mx_client_load("myapp"), "general")
+}
+}

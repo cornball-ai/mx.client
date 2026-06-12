@@ -14,3 +14,7 @@ Character vector of invited room ids.
 \description{
 Extract pending invite room ids from a sync response
 }
+\examples{
+sync_resp <- list(rooms = list(invite = list("!inv:example.org" = list())))
+mx_extract_invites(sync_resp)
+}
