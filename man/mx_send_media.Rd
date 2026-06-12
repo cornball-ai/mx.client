@@ -43,3 +43,10 @@ two packages export an \code{mx_send_media} each (session-first there,
 client-first here).
 
 }
+\examples{
+client <- list(room_id = "!default:example.org")
+png <- file.path(tempdir(), "plot.png")
+file.create(png)
+mx_send_media(client, png, dry_run = TRUE)
+unlink(png)
+}

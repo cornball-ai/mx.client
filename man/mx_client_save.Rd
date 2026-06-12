@@ -18,3 +18,12 @@ The saved config, invisibly.
 \description{
 Writes JSON with mode 0600.
 }
+\examples{
+path <- file.path(tempdir(), "matrix.json")
+mx_client_save(list(server = "https://matrix.example.org",
+                    token = "syt_example",
+                    user_id = "@bot:example.org",
+                    device_id = "DEVICEID"),
+               path = path)
+unlink(path)
+}

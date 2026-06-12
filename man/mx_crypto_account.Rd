@@ -17,7 +17,11 @@ account and persists it. The account holds the device's long-lived
 Curve25519/Ed25519 identity keys.
 }
 \examples{
-\dontrun{
-acct <- mx_crypto_account(mx_crypto_store_dir("corteza"))
+\donttest{
+if (requireNamespace("mx.crypto", quietly = TRUE)) {
+  store <- mx_crypto_store_dir("myapp", path = tempfile())
+  acct <- mx_crypto_account(store)
+  unlink(store, recursive = TRUE)
+}
 }
 }

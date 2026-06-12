@@ -276,4 +276,3 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
 
     list(events = events, sessions = sessions)
 }
-

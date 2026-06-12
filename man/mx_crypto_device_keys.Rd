@@ -21,8 +21,16 @@ the device's public identity keys plus an Ed25519 signature over their
 canonical JSON. Hand the result to \code{mx.api::mx_keys_upload()}.
 }
 \examples{
+\donttest{
+if (requireNamespace("mx.crypto", quietly = TRUE)) {
+  store <- mx_crypto_store_dir("myapp", path = tempfile())
+  acct <- mx_crypto_account(store)
+  dk <- mx_crypto_device_keys(acct, "@bot:example.org", "DEVICEID")
+  unlink(store, recursive = TRUE)
+}
+}
 \dontrun{
-dk <- mx_crypto_device_keys(acct, "@bot:example.org", "DEVICEID")
+# Uploading needs a live homeserver session:
 mx.api::mx_keys_upload(session, device_keys = dk)
 }
 }

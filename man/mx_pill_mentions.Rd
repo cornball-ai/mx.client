@@ -20,3 +20,6 @@ Replaces each occurrence of \code{@localpart} (or the full
 A user id with no textual occurrence is left to \code{m.mentions} alone,
 which still notifies.
 }
+\examples{
+mx_pill_mentions("<p>ping @jorge</p>", "@jorge:example.org")
+}

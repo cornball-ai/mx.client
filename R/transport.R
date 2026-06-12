@@ -173,4 +173,3 @@ mx_send_encrypted <- function(client, account, sessions, room_id, content,
     mx_crypto_sessions_save(out$sessions, store_dir)
     list(event_id = event_id, sessions = out$sessions)
 }
-

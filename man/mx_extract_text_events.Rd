@@ -19,3 +19,10 @@ List of normalized event records.
 Walks joined-room timeline events and returns normalized text-message
 records. Self events are retained and tagged with \code{is_self}.
 }
+\examples{
+sync_resp <- list(rooms = list(join = list("!room:example.org" = list(
+    timeline = list(events = list(list(type = "m.room.message",
+        event_id = "$1", sender = "@alice:example.org",
+        content = list(msgtype = "m.text", body = "hello"))))))))
+mx_extract_text_events(sync_resp, self_id = "@bot:example.org")
+}

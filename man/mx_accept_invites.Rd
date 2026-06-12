@@ -16,3 +16,11 @@ Character vector of joined room ids.
 \description{
 Accept pending Matrix room invites
 }
+\examples{
+\dontrun{
+# Needs a live homeserver session.
+client <- mx_client_load("myapp")
+res <- mx_sync_update(client)
+mx_accept_invites(res$client, mx_extract_invites(res$sync))
+}
+}

@@ -27,3 +27,11 @@ Calls \code{mx.api::mx_sync()} using \code{client$sync_token}, stores
 the returned \code{next_batch} in a returned client object, and
 optionally saves it back to disk.
 }
+\examples{
+\dontrun{
+# Needs a live homeserver session.
+client <- mx_client_load("myapp")
+res <- mx_sync_update(client, timeout = 30000L)
+events <- mx_extract_text_events(res$sync, client$user_id)
+}
+}

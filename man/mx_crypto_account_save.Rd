@@ -17,7 +17,12 @@ The pickle path, invisibly.
 Persist an Olm account to the store
 }
 \examples{
-\dontrun{
-mx_crypto_account_save(acct, mx_crypto_store_dir("corteza"))
+\donttest{
+if (requireNamespace("mx.crypto", quietly = TRUE)) {
+  store <- mx_crypto_store_dir("myapp", path = tempfile())
+  acct <- mx_crypto_account(store)
+  mx_crypto_account_save(acct, store)
+  unlink(store, recursive = TRUE)
+}
 }
 }
