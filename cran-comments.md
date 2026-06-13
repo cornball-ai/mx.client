@@ -8,7 +8,8 @@ First submission of mx.client to CRAN.
 
 * Ubuntu 24.04, R 4.x (local): R CMD check --as-cran, 0 errors, 0 warnings,
   1 note (new submission)
-* win-builder (R-devel and R-release)
+<!-- TODO before submission: run tinypkgr::check_win_devel() for R-devel
+     and R-release, then replace this comment with the results. -->
 
 ## Notes for the reviewer
 
