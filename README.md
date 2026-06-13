@@ -11,11 +11,11 @@ messages, and end-to-end encryption orchestration.
 ## Install
 
 ```r
-# GitHub only for now; not on CRAN yet.
+# From GitHub while the CRAN submission is in flight:
 remotes::install_github("cornball-ai/mx.client")
 
-# Optional, for end-to-end encryption (needs a Rust toolchain):
-remotes::install_github("cornball-ai/mx.crypto")
+# Optional, for end-to-end encryption (needs a Rust toolchain to build):
+install.packages("mx.crypto")
 ```
 
 ## Quick start: plaintext
