@@ -1,7 +1,8 @@
 Package: mx.client
 Type: Package
 Title: Stateful Matrix Client Helpers
-Version: 0.1.0.2
+Version: 0.1.1
+Date: 2026-06-13
 Authors@R: c(
     person("Troy", "Hernandez", role = c("aut", "cre"),
            email = "troy@cornball.ai",
