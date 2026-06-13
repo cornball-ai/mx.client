@@ -195,8 +195,12 @@ mx_accept_invites <- function(client, invites) {
 #' @param room_id Character room id.
 #' @param self_id Current user's Matrix id.
 #' @param target_event_id Event id being reacted to.
-#' @param approve_keys Character vector.
-#' @param deny_keys Character vector.
+#' @param approve_keys Character vector of reaction keys read as approval.
+#'   \code{NULL} (default) uses thumbs-up (U+1F44D), check-mark (U+2705),
+#'   and \code{"y"}/\code{"yes"}/\code{"ok"}.
+#' @param deny_keys Character vector of reaction keys read as denial.
+#'   \code{NULL} (default) uses thumbs-down (U+1F44E), cross-mark
+#'   (U+274C), and \code{"n"}/\code{"no"}/\code{"nope"}.
 #' @return TRUE, FALSE, or NULL.
 #' @examples
 #' sync_resp <- list(rooms = list(join = list("!room:example.org" = list(
@@ -210,8 +214,19 @@ mx_accept_invites <- function(client, invites) {
 #' @export
 mx_extract_reaction_verdict <- function(sync_resp, room_id, self_id,
                                         target_event_id,
-                                        approve_keys = c("\U0001F44D", "\U00002705", "y", "yes", "ok"),
-                                        deny_keys = c("\U0001F44E", "\U0000274C", "n", "no", "nope")) {
+                                        approve_keys = NULL,
+                                        deny_keys = NULL) {
+    # Emoji defaults are built here, not in the signature, so they don't
+    # land as raw astral-plane glyphs in the .Rd \usage block -- LaTeX
+    # can't typeset them and the PDF manual fails R CMD check --as-cran.
+    if (is.null(approve_keys)) {
+        approve_keys <- c(intToUtf8(0x1F44D), intToUtf8(0x2705),
+                          "y", "yes", "ok")
+    }
+    if (is.null(deny_keys)) {
+        deny_keys <- c(intToUtf8(0x1F44E), intToUtf8(0x274C),
+                       "n", "no", "nope")
+    }
     room <- sync_resp$rooms$join[[room_id]]
     if (is.null(room)) {
         return(NULL)
