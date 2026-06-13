@@ -4,8 +4,7 @@
 \title{Extract a reaction approval verdict from sync events}
 \usage{
 mx_extract_reaction_verdict(sync_resp, room_id, self_id, target_event_id,
-                            approve_keys = c("👍", "✅", "y", "yes", "ok"),
-                            deny_keys = c("👎", "❌", "n", "no", "nope"))
+                            approve_keys = NULL, deny_keys = NULL)
 }
 \arguments{
 \item{sync_resp}{Parsed \code{/sync} response.}
@@ -16,9 +15,13 @@ mx_extract_reaction_verdict(sync_resp, room_id, self_id, target_event_id,
 
 \item{target_event_id}{Event id being reacted to.}
 
-\item{approve_keys}{Character vector.}
+\item{approve_keys}{Character vector of reaction keys read as approval.
+\code{NULL} (default) uses thumbs-up (U+1F44D), check-mark (U+2705),
+and \code{"y"}/\code{"yes"}/\code{"ok"}.}
 
-\item{deny_keys}{Character vector.}
+\item{deny_keys}{Character vector of reaction keys read as denial.
+\code{NULL} (default) uses thumbs-down (U+1F44E), cross-mark
+(U+274C), and \code{"n"}/\code{"no"}/\code{"nope"}.}
 }
 \value{
 TRUE, FALSE, or NULL.
