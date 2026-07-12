@@ -35,3 +35,10 @@ expect_message(
   "dry-run"
 )
 expect_null(out)
+
+# mx_set_displayname: signature, validation, and relogin plumbing
+expect_equal(names(formals(mx.client::mx_set_displayname)),
+             c("client", "name", "save"))
+expect_error(mx.client::mx_set_displayname(cl, ""), "non-empty")
+expect_error(mx.client::mx_set_displayname(cl, c("a", "b")), "single")
+expect_error(mx.client::mx_set_displayname(cl, NA_character_), "non-empty")
