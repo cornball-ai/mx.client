@@ -1,3 +1,11 @@
+# mx.client 0.1.1.1
+
+* `print()` method for `mx_client_config`: masks `token` and `password`
+  as `<hidden>` (or `<unset>` when empty) instead of falling through to
+  the default list print, which showed credentials verbatim. `sync_token`
+  and every other field stay visible. `unclass()` still exposes the raw
+  values for the cases that need them.
+
 # mx.client 0.1.1
 
 * First release. Stateful client layer over 'mx.api': configuration
