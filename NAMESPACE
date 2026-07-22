@@ -39,3 +39,5 @@ export(mx_send_media)
 export(mx_send_text)
 export(mx_sync_update)
 export(mx_with_relogin)
+
+S3method(print,mx_client_config)

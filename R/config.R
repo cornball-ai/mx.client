@@ -79,6 +79,70 @@ mx_client_plain_list <- function(client) {
     out
 }
 
+# Config fields holding credentials. sync_token is deliberately absent:
+# it is a cursor, not a secret, and seeing it is useful when debugging.
+mx_client_secret_fields <- c("token", "access_token", "refresh_token",
+                             "password")
+
+mx_client_field_text <- function(name, value) {
+    set <- length(value) > 0L &&
+    !all(is.na(value)) &&
+    (!is.character(value) || any(nzchar(value)))
+    if (name %in% mx_client_secret_fields) {
+        return(if (set) {
+                "<hidden>"
+            } else {
+                "<unset>"
+            })
+    }
+    if (!set) {
+        return("<unset>")
+    }
+    if (is.list(value) || length(value) > 1L) {
+        return(sprintf("<%s[%d]>", class(value)[1L], length(value)))
+    }
+    as.character(value)
+}
+
+#' Print a Matrix client config
+#'
+#' Prints the config field by field with credentials masked, so that an
+#' interactive session, a screenshot, or a pasted bug report does not
+#' leak the access token or password. Secret fields show whether they
+#' are set (\code{<hidden>}) or empty (\code{<unset>}) without showing
+#' the value. Use \code{unclass(x)} or \code{str(unclass(x))} when the
+#' raw credentials are genuinely needed.
+#'
+#' @param x An \code{mx_client_config}, as returned by
+#'   \code{mx_client_load()} or \code{mx_client_from_config()}.
+#' @param ... Ignored.
+#' @return \code{x}, invisibly.
+#' @examples
+#' cfg <- mx_client_from_config(list(server = "https://matrix.example.org",
+#'                                   token = "syt_secret_value",
+#'                                   user_id = "@bot:example.org",
+#'                                   device_id = "DEVICEID"))
+#' cfg
+#' @export
+print.mx_client_config <- function(x, ...) {
+    cat("<mx_client_config>\n")
+    fields <- names(x)
+    labels <- c(paste0(fields, ":"), if (!is.null(attr(x, "path"))) "path:")
+    if (!length(labels)) {
+        cat("  (no fields)\n")
+        return(invisible(x))
+    }
+    width <- max(nchar(labels))
+    for (f in fields) {
+        cat(sprintf("  %-*s %s\n", width, paste0(f, ":"),
+                    mx_client_field_text(f, x[[f]])))
+    }
+    if (!is.null(attr(x, "path"))) {
+        cat(sprintf("  %-*s %s\n", width, "path:", attr(x, "path")))
+    }
+    invisible(x)
+}
+
 #' Load a Matrix client config
 #'
 #' Reads a JSON config. If \code{path} or the derived environment variable
