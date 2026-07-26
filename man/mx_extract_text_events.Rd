@@ -13,7 +13,11 @@ mx_extract_text_events(sync_resp, self_id, msgtypes = "m.text")
 \item{msgtypes}{Character vector of message types to include.}
 }
 \value{
-List of normalized event records.
+List of normalized event records, each carrying
+  \code{room_id}, \code{event_id}, \code{sender}, \code{is_self},
+  \code{body}, \code{msgtype}, \code{ts} (the event's
+  \code{origin_server_ts}, in milliseconds since the epoch, or NULL
+  when the server omits it), and \code{mentions}.
 }
 \description{
 Walks joined-room timeline events and returns normalized text-message
