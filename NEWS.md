@@ -1,3 +1,10 @@
+# mx.client 0.1.1.1
+
+* `mx_extract_text_events()` keeps the event's `origin_server_ts` as a
+  `ts` field (milliseconds since the epoch, NULL when the server omits
+  it). Records previously carried no time at all, leaving consumers to
+  stamp messages with their own poll clock.
+
 # mx.client 0.1.1
 
 * First release. Stateful client layer over 'mx.api': configuration
