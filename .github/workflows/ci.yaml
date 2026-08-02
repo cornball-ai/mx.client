@@ -24,8 +24,24 @@ jobs:
         with:
           backend: RAPT
 
+      - name: Install Rust toolchain
+        # mx.crypto is a Rust package with no r2u binary, so it has to be
+        # built from source here.
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
       - name: Dependencies
         run: ./run.sh install_deps
+
+      - name: Install suggested packages
+        # install_deps covers Imports only. Without mx.crypto every E2EE
+        # test calls exit_file() and CI goes green having exercised none of
+        # the encryption path -- which is how unverified homeserver keys
+        # shipped in the first place. simplermarkdown is needed for R CMD
+        # check to treat vignettes/e2ee.md as a vignette rather than a
+        # stray file.
+        run: Rscript -e 'install.packages(c("mx.crypto", "simplermarkdown"))'
 
       - name: Test
         run: ./run.sh run_tests
