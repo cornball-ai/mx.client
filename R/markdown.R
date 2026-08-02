@@ -76,8 +76,7 @@ mx_table_to_html <- function(rows) {
     align <- mx_table_align(rows[[2]])
     body <- rows[-c(1L, 2L)]
     html <- c("<table>", "<thead><tr>",
-              mx_table_html_cells(header, "th", align),
-              "</tr></thead>")
+              mx_table_html_cells(header, "th", align), "</tr></thead>")
     if (length(body)) {
         body_html <- vapply(body, function(row) {
             cells <- mx_table_row_cells(row)
@@ -200,7 +199,7 @@ mx_markdown_to_html <- function(text) {
             next
         }
         out <- c(out, close_lists(), sprintf("<p>%s</p>",
-            mx_markdown_inline_html(ln)))
+                mx_markdown_inline_html(ln)))
         i <- i + 1L
     }
     if (in_pre) {
@@ -218,6 +217,8 @@ mx_markdown_to_html <- function(text) {
 #' @return HTML with textual \code{@localpart} occurrences replaced by
 #'   matrix.to links. Unmatched user ids leave the HTML unchanged; they
 #'   can still be placed in \code{m.mentions} by \code{mx_send_text()}.
+#' @examples
+#' mx_pill_mentions("<p>ping @jorge</p>", "@jorge:example.org")
 #' @export
 mx_pill_mentions <- function(html, user_ids) {
     if (!length(user_ids)) {

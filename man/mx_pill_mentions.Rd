@@ -19,3 +19,6 @@ HTML with textual \code{@localpart} occurrences replaced by
 \description{
 Turn textual @mentions into Matrix pills in formatted HTML
 }
+\examples{
+mx_pill_mentions("<p>ping @jorge</p>", "@jorge:example.org")
+}

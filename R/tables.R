@@ -17,7 +17,7 @@ mx_table_plain <- function(x) {
     x <- mx_table_coerce(x)
     header <- paste(names(x), collapse = " | ")
     rows <- vapply(seq_len(nrow(x)), function(i) {
-        paste(vapply(x[i, , drop = FALSE], as.character, character(1)),
+        paste(vapply(x[i,, drop = FALSE], as.character, character(1)),
               collapse = " | ")
     }, character(1))
     paste(c(header, rows), collapse = "\n")
@@ -44,15 +44,15 @@ mx_table_html <- function(x, header = TRUE) {
     rows <- character()
     if (isTRUE(header)) {
         rows <- c(rows, paste0("<tr>",
-                               paste(vapply(names(x), cell, character(1),
-                                            tag = "th"), collapse = ""),
+                               paste(vapply(names(x), cell, character(1), tag = "th"),
+                                     collapse = ""),
                                "</tr>"))
     }
     if (nrow(x)) {
         rows <- c(rows, vapply(seq_len(nrow(x)), function(i) {
-            vals <- vapply(x[i, , drop = FALSE], as.character, character(1))
+            vals <- vapply(x[i,, drop = FALSE], as.character, character(1))
             paste0("<tr>", paste(vapply(vals, cell, character(1), tag = "td"),
-                                  collapse = ""), "</tr>")
+                                 collapse = ""), "</tr>")
         }, character(1)))
     }
     paste0("<table>", paste(rows, collapse = ""), "</table>")
@@ -75,8 +75,8 @@ mx_table_html <- function(x, header = TRUE) {
 #' client <- list(room_id = "!default:example.org")
 #' mx_send_table(client, data.frame(A = 1, B = 2), dry_run = TRUE)
 #' @export
-mx_send_table <- function(client, x, room = NULL, header = TRUE, title = NULL,
-                          room_cache = NULL, dry_run = FALSE) {
+mx_send_table <- function(client, x, room = NULL, header = TRUE,
+                          title = NULL, room_cache = NULL, dry_run = FALSE) {
     html <- mx_table_html(x, header = header)
     body <- mx_table_plain(x)
     if (!is.null(title) && nzchar(title)) {
@@ -89,6 +89,5 @@ mx_send_table <- function(client, x, room = NULL, header = TRUE, title = NULL,
     }
     rid <- mx_resolve_room(client, room, room_cache = room_cache)
     mx.api::mx_send(mx_client_session(client), rid, body, msgtype = "m.text",
-                    extra = list(format = "org.matrix.custom.html",
-                                 formatted_body = html))
+                    extra = list(format = "org.matrix.custom.html", formatted_body = html))
 }
