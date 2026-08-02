@@ -24,13 +24,6 @@ jobs:
         with:
           backend: RAPT
 
-      - name: Install Rust toolchain
-        # mx.crypto is a Rust package with no r2u binary, so it has to be
-        # built from source here.
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
       - name: Dependencies
         run: ./run.sh install_deps
 
@@ -41,6 +34,10 @@ jobs:
         # shipped in the first place. simplermarkdown is needed for R CMD
         # check to treat vignettes/e2ee.md as a vignette rather than a
         # stray file.
+        #
+        # Both arrive as binaries (r2u on Linux, CRAN on macOS), so no Rust
+        # toolchain is needed despite mx.crypto being a Rust package. The
+        # runners ship rustc anyway if a source build is ever forced.
         run: Rscript -e 'install.packages(c("mx.crypto", "simplermarkdown"))'
 
       - name: Test
