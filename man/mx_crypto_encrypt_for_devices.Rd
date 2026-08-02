@@ -4,7 +4,8 @@
 \title{Encrypt an event for an encrypted room's devices}
 \usage{
 mx_crypto_encrypt_for_devices(account, sessions, room_id, content,
-                              sender_curve25519, device_id, recipients = list())
+                              sender_curve25519, device_id,
+                              recipients = list(), sender_user_id = NULL)
 }
 \arguments{
 \item{account}{An mx.crypto account handle.}
@@ -20,8 +21,13 @@ mx_crypto_encrypt_for_devices(account, sessions, room_id, content,
 \item{device_id}{Character. This device's id.}
 
 \item{recipients}{List of recipient devices, each a list with
-\code{user_id}, \code{device_id}, \code{curve25519}, and (only needed
-to open a new Olm session) \code{otk}, a claimed one-time key.}
+\code{user_id}, \code{device_id}, \code{curve25519}, \code{ed25519},
+and (only needed to open a new Olm session) \code{otk}, a claimed
+one-time key. Use \code{mx_crypto_known_devices()}, which returns
+exactly this shape for devices whose keys verified.}
+
+\item{sender_user_id}{Character. This user's Matrix id. Required to
+build a spec-conformant Olm payload that the recipient can attribute.}
 }
 \value{
 List with \code{to_device} (per-device payloads), \code{event}
@@ -43,7 +49,7 @@ if (requireNamespace("mx.crypto", quietly = TRUE)) {
     acct, mx_crypto_sessions_new(), "!r:ex",
     list(msgtype = "m.text", body = "hi"),
     mx.crypto::mxc_account_identity_keys(acct)$curve25519, "DEV",
-    recipients = list())
+    recipients = list(), sender_user_id = "@me:ex")
   names(out)
 }
 }

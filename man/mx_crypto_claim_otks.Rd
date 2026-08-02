@@ -12,11 +12,18 @@ mx_crypto_claim_otks(client, devices)
 }
 \value{
 The devices with an \code{otk} field added where one was
-  claimed.
+  claimed and verified.
 }
 \description{
 Calls \code{/keys/claim} and attaches the claimed key to each device as
 \code{$otk}, ready for \code{mx_crypto_encrypt_for_devices()}.
+}
+\details{
+Each claimed key's signature is checked against the device's Ed25519
+key, which must itself have come from a verified \code{device_keys}
+(that is, from \code{mx_crypto_known_devices()}). A key that fails is
+dropped with a warning and its device comes back with no \code{otk}.
+
 }
 \examples{
 \dontrun{

@@ -42,14 +42,21 @@ megolm_out <- mx.crypto::mxc_megolm_outbound_new()
 td <- mx_crypto_room_key_payload(
     olm, sender_curve25519 = alice_idk$curve25519,
     recipient_curve25519 = bob_idk$curve25519,
-    room_id = ROOM, megolm_out = megolm_out)
+    room_id = ROOM, megolm_out = megolm_out,
+    sender_user_id = "@alice:example.org",
+    sender_ed25519 = alice_idk$ed25519,
+    recipient_user_id = "@bob:example.org",
+    recipient_ed25519 = bob_idk$ed25519)
 expect_equal(td$algorithm, "m.olm.v1.curve25519-aes-sha2")
 expect_true(bob_idk$curve25519 %in% names(td$ciphertext))
 
 # ---- Bob receives the to-device payload, recovers the room key ----
-room_key_ev <- mx_crypto_handle_to_device(bob, bob_idk$curve25519, td)
+room_key_ev <- mx_crypto_handle_to_device(bob, bob_idk$curve25519, td,
+                                          self_id = "@bob:example.org")
 expect_equal(room_key_ev$type, "m.room_key")
 expect_equal(room_key_ev$content$room_id, ROOM)
+expect_equal(room_key_ev$sender, "@alice:example.org")   # attested sender
+expect_equal(room_key_ev$keys$ed25519, alice_idk$ed25519)
 inbound <- mx_crypto_inbound_session(room_key_ev$content$session_key)
 
 # ---- Alice encrypts a room message; Bob decrypts it ----
