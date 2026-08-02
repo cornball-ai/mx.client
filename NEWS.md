@@ -1,3 +1,46 @@
+# mx.client 0.1.1.3
+
+* **HIGH** (security): homeserver-supplied keys are now verified before
+  use. `mx_crypto_known_devices()` checks each device's Ed25519
+  self-signature with `mx.crypto::mxc_verify_device_keys()`, and
+  `mx_crypto_claim_otks()` checks each claimed one-time key with
+  `mx.crypto::mxc_verify_one_time_key()` against that verified Ed25519.
+  Both previously read the keys straight out of the response, so a
+  malicious or compromised homeserver could substitute its own
+  Curve25519 key for any device and read everything sent to that user.
+  A device that fails verification is dropped with a warning and the
+  remaining devices still receive the message.
+* **HIGH** (security): Olm to-device payloads now carry the
+  `sender`, `recipient`, `recipient_keys`, and `keys` fields the spec
+  requires. `mx_crypto_room_key_payload()` emitted only `type` and
+  `content`, leaving the receiver nothing to authenticate against;
+  other clients reject such payloads.
+* **HIGH** (security): `mx_crypto_process_sync()` and
+  `mx_crypto_handle_to_device()` now confirm a decrypted Olm payload
+  names this device as recipient before acting on it. Decrypting only
+  proves the message was encrypted to our key, not that it was meant
+  for us here, so a server could previously replay a captured payload.
+* `mx_crypto_process_sync()` records the sender attested by the Olm
+  payload that shared each Megolm session, and reports it as
+  `sender_verified` on decrypted events. When the cleartext envelope
+  disagrees with the attested sender the event is dropped: that is a
+  forged `sender`, which the server was previously free to set. Events
+  decrypted with a session from a store written before this change
+  carry `sender_verified = FALSE`.
+* `mx_crypto_room_key_payload()` gains `sender_user_id`,
+  `sender_ed25519`, `recipient_user_id`, and `recipient_ed25519`;
+  `mx_crypto_encrypt_for_devices()` gains `sender_user_id` and now
+  requires each recipient to carry a verified `ed25519`;
+  `mx_crypto_handle_to_device()` gains `self_id` and `self_ed25519`.
+* Session stores written before this release still load: a bare
+  `megolm_in` pickle is read as a session with no attested sender
+  rather than discarded, so a running client keeps its history.
+* `Suggests: mx.crypto (>= 0.2.0)`, the first version providing the
+  verification helpers.
+* New `inst/tinytest/test_transport.R` covers the verification paths
+  against tampered fixture responses. `R/transport.R` previously had no
+  test file at all.
+
 # mx.client 0.1.1.1
 
 * `mx_extract_text_events()` keeps the event's `origin_server_ts` as a
