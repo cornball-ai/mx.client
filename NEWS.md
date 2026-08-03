@@ -20,18 +20,27 @@
   names this device as recipient before acting on it. Decrypting only
   proves the message was encrypted to our key, not that it was meant
   for us here, so a server could previously replay a captured payload.
-* `mx_crypto_process_sync()` records the sender attested by the Olm
-  payload that shared each Megolm session, and reports it as
-  `sender_verified` on decrypted events. When the cleartext envelope
-  disagrees with the attested sender the event is dropped: that is a
-  forged `sender`, which the server was previously free to set. Events
-  decrypted with a session from a store written before this change
-  carry `sender_verified = FALSE`.
+* `mx_crypto_process_sync()` records the sender the Olm payload claimed
+  when it shared each Megolm session, and drops any decrypted event
+  whose cleartext envelope disagrees with that claim: the server was
+  previously free to set `sender` to anything.
+* `mx_crypto_process_sync()` and `mx_crypto_handle_to_device()` gain a
+  `devices` argument taking the verified list from
+  `mx_crypto_known_devices()`. A decrypted event reports
+  `sender_verified = TRUE` only when the payload's claimed
+  `(sender, ed25519, curve25519)` matches one of those devices as a
+  triple. Agreement between the payload and the envelope is not enough
+  on its own: a hostile homeserver writes both, so it can make them
+  corroborate each other. Binding to a self-signed `device_keys` object
+  is the part it cannot forge. Callers that pass no `devices` still
+  decrypt but always get `sender_verified = FALSE`, as do events
+  decrypted with a session from a store written before this change.
 * `mx_crypto_room_key_payload()` gains `sender_user_id`,
   `sender_ed25519`, `recipient_user_id`, and `recipient_ed25519`;
   `mx_crypto_encrypt_for_devices()` gains `sender_user_id` and now
   requires each recipient to carry a verified `ed25519`;
-  `mx_crypto_handle_to_device()` gains `self_id` and `self_ed25519`.
+  `mx_crypto_handle_to_device()` gains `self_id`, `self_ed25519`, and
+  `devices`, and its result carries `sender_bound`.
 * Session stores written before this release still load: a bare
   `megolm_in` pickle is read as a session with no attested sender
   rather than discarded, so a running client keeps its history.

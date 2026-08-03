@@ -4,7 +4,7 @@
 \title{Process a sync response: store room keys, decrypt room events}
 \usage{
 mx_crypto_process_sync(account, sessions, sync_resp, self_curve25519,
-                       self_id = NULL)
+                       self_id = NULL, devices = NULL)
 }
 \arguments{
 \item{account}{An mx.crypto account handle.}
@@ -17,6 +17,14 @@ mx_crypto_process_sync(account, sessions, sync_resp, self_curve25519,
 
 \item{self_id}{Character or NULL. This user's Matrix id, for
 \code{is_self} tagging.}
+
+\item{devices}{List of verified devices from
+\code{mx_crypto_known_devices()}, or NULL. Room keys arrive over Olm
+carrying a claimed sender, and anyone who can reach this device can
+send one, so the claim is only worth something once it is matched
+against a device whose \code{device_keys} verified. Without this
+list decrypted events always report \code{sender_verified = FALSE}:
+they still decrypt, but nothing attests to who sent them.}
 }
 \value{
 List with \code{events} (decrypted, normalized) and the updated

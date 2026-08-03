@@ -4,7 +4,7 @@
 \title{Decrypt an inbound Olm to-device payload}
 \usage{
 mx_crypto_handle_to_device(account, my_curve25519, content, self_id = NULL,
-                           self_ed25519 = NULL)
+                           self_ed25519 = NULL, devices = NULL)
 }
 \arguments{
 \item{account}{An mx.crypto account handle.}
@@ -18,10 +18,17 @@ recipient user-id check is skipped; pass it whenever it is known.}
 
 \item{self_ed25519}{Character or NULL. This device's Ed25519 key.
 Defaults to the account's own key.}
+
+\item{devices}{List of verified devices from
+\code{mx_crypto_known_devices()}, or NULL. Used to tie the payload's
+claimed sender to a device whose keys were verified. The result
+carries \code{sender_bound}, which is FALSE when no list is supplied
+or nothing matches; an unbound sender identity is a claim, not a
+fact, because anyone can open an Olm session to this device.}
 }
 \value{
-The decrypted event (a parsed list), or NULL if it was not for
-  us or failed the recipient checks.
+The decrypted event (a parsed list) with a \code{sender_bound}
+  flag, or NULL if it was not for us or failed the recipient checks.
 }
 \description{
 Accepts an \code{m.room.encrypted} to-device content addressed to this
@@ -39,8 +46,9 @@ to our key, not that it was meant for us here.
 \examples{
 \dontrun{
 ev <- mx_crypto_handle_to_device(acct, my_curve, td_content,
-                                 self_id = "@me:example.org")
-if (identical(ev$type, "m.room_key")) {
+                                 self_id = "@me:example.org",
+                                 devices = mx_crypto_known_devices(cl, uid))
+if (identical(ev$type, "m.room_key") && isTRUE(ev$sender_bound)) {
   inb <- mx_crypto_inbound_session(ev$content$session_key)
 }
 }

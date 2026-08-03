@@ -53,13 +53,71 @@ out1 <- mx_crypto_encrypt_for_devices(
 a_sess <- out1$sessions
 expect_equal(length(out1$to_device), 1L)         # key shared with Bob
 
+# Bob's verified view of Alice's device, as /keys/query would yield it.
+alice_devs <- list(list(user_id = "@alice:example.org", device_id = "ALICEDEV",
+                        curve25519 = alice_curve, ed25519 = alice_ed))
+
 res1 <- mx_crypto_process_sync(bob, b_sess, bob_sync(out1, "$1"),
-                               bob_curve, self_id = "@bob:example.org")
+                               bob_curve, self_id = "@bob:example.org",
+                               devices = alice_devs)
 b_sess <- res1$sessions
 expect_equal(length(res1$events), 1L)
 expect_equal(res1$events[[1]]$body, "first secret")   # decrypted
 expect_false(res1$events[[1]]$is_self)
-expect_true(res1$events[[1]]$sender_verified)         # attested over Olm
+expect_true(res1$events[[1]]$sender_verified)         # bound to a verified device
+
+# Olm one-time keys are single-use, so each scenario below needs its own
+# recipient account and its own key share; a replayed prekey message
+# cannot establish a second session.
+probe <- function(event_id) {
+    acct <- mx.crypto::mxc_account_new()
+    idk <- mx.crypto::mxc_account_identity_keys(acct)
+    mx.crypto::mxc_account_generate_one_time_keys(acct, 1L)
+    otk <- mx.crypto::mxc_account_one_time_keys(acct)[[1]]
+    out <- mx_crypto_encrypt_for_devices(
+        alice, mx_crypto_sessions_new(), ROOM,
+        list(msgtype = "m.text", body = "probe"), alice_curve, "ALICEDEV",
+        recipients = list(list(user_id = "@bob:example.org",
+                               device_id = "BOBDEV",
+                               curve25519 = idk$curve25519,
+                               ed25519 = idk$ed25519, otk = otk)),
+        sender_user_id = "@alice:example.org")
+    list(account = acct, curve = idk$curve25519,
+         sync = bob_sync(out, event_id))
+}
+
+# Without a device list the traffic decrypts but claims nothing: the
+# sender identity in an Olm payload is written by whoever holds the
+# session, and anyone can open one to us.
+p1 <- probe("$1b")
+unbound <- suppressWarnings(
+    mx_crypto_process_sync(p1$account, mx_crypto_sessions_new(), p1$sync,
+                           p1$curve, self_id = "@bob:example.org"))
+expect_equal(length(unbound$events), 1L)              # still decrypts
+expect_false(unbound$events[[1]]$sender_verified)     # but attests nothing
+
+# A device list whose curve25519 is not the one that sent the room key
+# must not bind. This is the hostile-homeserver case: it injects a room
+# key claiming Alice and stamps the envelope to agree, so the two halves
+# corroborate each other and only the device binding catches it.
+p2 <- probe("$1c")
+wrong_curve <- list(list(user_id = "@alice:example.org",
+                         device_id = "ALICEDEV",
+                         curve25519 = p2$curve,   # not the sending device
+                         ed25519 = alice_ed))
+forged_attest <- suppressWarnings(
+    mx_crypto_process_sync(p2$account, mx_crypto_sessions_new(), p2$sync,
+                           p2$curve, self_id = "@bob:example.org",
+                           devices = wrong_curve))
+expect_equal(length(forged_attest$events), 1L)
+expect_false(forged_attest$events[[1]]$sender_verified)
+
+# The matching device does bind.
+p3 <- probe("$1d")
+ok <- mx_crypto_process_sync(p3$account, mx_crypto_sessions_new(), p3$sync,
+                             p3$curve, self_id = "@bob:example.org",
+                             devices = alice_devs)
+expect_true(ok$events[[1]]$sender_verified)
 
 # ---- persist both sides, reload from disk ----
 mx_crypto_sessions_save(a_sess, a_store)
