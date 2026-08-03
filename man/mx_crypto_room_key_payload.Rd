@@ -4,7 +4,9 @@
 \title{Encrypt a Megolm room key to one device as a to-device payload}
 \usage{
 mx_crypto_room_key_payload(olm_session, sender_curve25519,
-                           recipient_curve25519, room_id, megolm_out)
+                           recipient_curve25519, room_id, megolm_out,
+                           sender_user_id, sender_ed25519, recipient_user_id,
+                           recipient_ed25519)
 }
 \arguments{
 \item{olm_session}{An outbound Olm session
@@ -17,6 +19,14 @@ mx_crypto_room_key_payload(olm_session, sender_curve25519,
 \item{room_id}{Character. Room the key is for.}
 
 \item{megolm_out}{An outbound Megolm session.}
+
+\item{sender_user_id}{Character. This user's Matrix id.}
+
+\item{sender_ed25519}{Character. This device's Ed25519 key.}
+
+\item{recipient_user_id}{Character. Target user's Matrix id.}
+
+\item{recipient_ed25519}{Character. Target device's Ed25519 key.}
 }
 \value{
 A named list: the to-device \code{m.room.encrypted} content.
@@ -30,6 +40,7 @@ Olm-encrypts it to the recipient device, and returns the
 \examples{
 \dontrun{
 content <- mx_crypto_room_key_payload(olm, my_curve, their_curve,
-                                      "!room:ex", megolm_out)
+                                      "!room:ex", megolm_out,
+                                      "@me:ex", my_ed, "@them:ex", their_ed)
 }
 }
