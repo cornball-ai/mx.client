@@ -218,19 +218,17 @@ mx_accept_invites <- function(client, invites) {
 #'                             target_event_id = "$msg")
 #' @export
 mx_extract_reaction_verdict <- function(sync_resp, room_id, self_id,
-                                        target_event_id,
-                                        approve_keys = NULL,
+                                        target_event_id, approve_keys = NULL,
                                         deny_keys = NULL) {
     # Emoji defaults are built here, not in the signature, so they don't
     # land as raw astral-plane glyphs in the .Rd \usage block -- LaTeX
     # can't typeset them and the PDF manual fails R CMD check --as-cran.
     if (is.null(approve_keys)) {
-        approve_keys <- c(intToUtf8(0x1F44D), intToUtf8(0x2705),
-                          "y", "yes", "ok")
+        approve_keys <- c(intToUtf8(0x1F44D), intToUtf8(0x2705), "y", "yes",
+                          "ok")
     }
     if (is.null(deny_keys)) {
-        deny_keys <- c(intToUtf8(0x1F44E), intToUtf8(0x274C),
-                       "n", "no", "nope")
+        deny_keys <- c(intToUtf8(0x1F44E), intToUtf8(0x274C), "n", "no", "nope")
     }
     room <- sync_resp$rooms$join[[room_id]]
     if (is.null(room)) {
