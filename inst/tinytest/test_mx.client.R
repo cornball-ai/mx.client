@@ -123,3 +123,33 @@ unlink(tmp, recursive = TRUE)
 expect_true(is.function(mx.client::mx_room_encrypted))
 expect_equal(names(formals(mx.client::mx_room_encrypted)),
              c("client", "room", "room_cache"))
+
+# --- print.mx_client_config masks credentials ---
+
+secret_cfg <- mx.client::mx_client_from_config(
+    list(server = "https://matrix.example", token = "syt_supersecret",
+         password = "hunter2", user_id = "@bot:example", device_id = "DEV",
+         room_id = "!room:ex", sync_token = "s99_cursor",
+         tools_filter = list()),
+    path = "/tmp/matrix.json"
+)
+out <- paste(capture.output(print(secret_cfg)), collapse = "\n")
+# credentials never appear, in any form
+expect_false(grepl("syt_supersecret", out, fixed = TRUE))
+expect_false(grepl("hunter2", out, fixed = TRUE))
+expect_true(grepl("token:\\s+<hidden>", out))
+expect_true(grepl("password:\\s+<hidden>", out))
+# non-secret fields stay visible, including the sync cursor
+expect_true(grepl("@bot:example", out, fixed = TRUE))
+expect_true(grepl("s99_cursor", out, fixed = TRUE))
+expect_true(grepl("/tmp/matrix.json", out, fixed = TRUE))
+# an empty credential reads as unset rather than hidden
+empty_cfg <- mx.client::mx_client_from_config(
+    list(server = "https://matrix.example", token = "", user_id = "@b:e")
+)
+out_empty <- paste(capture.output(print(empty_cfg)), collapse = "\n")
+expect_true(grepl("token:\\s+<unset>", out_empty))
+# printing returns the object unchanged, and invisibly
+capture.output(vis <- withVisible(print(secret_cfg)))
+expect_false(vis$visible)
+expect_identical(vis$value, secret_cfg)

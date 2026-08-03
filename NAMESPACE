@@ -42,3 +42,5 @@ export(mx_set_displayname)
 export(mx_sync_update)
 export(mx_table_html)
 export(mx_with_relogin)
+
+S3method(print,mx_client_config)
