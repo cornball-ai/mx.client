@@ -69,6 +69,23 @@ expect_false(events[[1]]$is_self)
 expect_true(events[[2]]$is_self)
 expect_equal(events[[1]]$mentions[[1]], "@bot:ex")
 
+# origin_server_ts survives extraction. Consumers that stamp messages
+# with the poll's wall clock instead reorder history on every restart,
+# so a record without it is not merely lossy.
+ts_sync <- list(rooms = list(join = list("!r:ex" = list(timeline = list(
+    events = list(
+        list(type = "m.room.message", sender = "@alice:ex", event_id = "$1",
+             origin_server_ts = 1700000000000,
+             content = list(msgtype = "m.text", body = "stamped")),
+        list(type = "m.room.message", sender = "@alice:ex", event_id = "$2",
+             content = list(msgtype = "m.text", body = "unstamped"))
+    )
+)))))
+ts_events <- mx.client::mx_extract_text_events(ts_sync, "@bot:ex")
+expect_equal(ts_events[[1]]$ts, 1700000000000)
+# A server that omits it yields NULL rather than a fabricated time
+expect_null(ts_events[[2]]$ts)
+
 invites <- mx.client::mx_extract_invites(list(rooms = list(invite = list(
     "!a:ex" = list(), "!b:ex" = list()
 ))))

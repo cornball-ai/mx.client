@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  pull_request:
+
+env:
+  _R_CHECK_FORCE_SUGGESTS_: "false"
+
+jobs:
+  ci:
+    strategy:
+      matrix:
+        include:
+          - {os: macos-latest}
+          - {os: ubuntu-latest}
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup
+        uses: eddelbuettel/github-actions/r-ci@master
+        with:
+          backend: RAPT
+
+      - name: Dependencies
+        run: ./run.sh install_deps
+
+      - name: Install suggested packages
+        # install_deps covers Imports only. Without mx.crypto every E2EE
+        # test calls exit_file() and CI goes green having exercised none of
+        # the encryption path -- which is how unverified homeserver keys
+        # shipped in the first place. simplermarkdown is needed for R CMD
+        # check to treat vignettes/e2ee.md as a vignette rather than a
+        # stray file.
+        #
+        # Both arrive as binaries (r2u on Linux, CRAN on macOS), so no Rust
+        # toolchain is needed despite mx.crypto being a Rust package. The
+        # runners ship rustc anyway if a source build is ever forced.
+        run: Rscript -e 'install.packages(c("mx.crypto", "simplermarkdown"))'
+
+      - name: Test
+        run: ./run.sh run_tests

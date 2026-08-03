@@ -99,7 +99,11 @@ mx_sync_update <- function(client, timeout = 0L, filter = NULL, save = TRUE,
 #' @param sync_resp Parsed \code{/sync} response.
 #' @param self_id Current user's Matrix id.
 #' @param msgtypes Character vector of message types to include.
-#' @return List of normalized event records.
+#' @return List of normalized event records, each carrying
+#'   \code{room_id}, \code{event_id}, \code{sender}, \code{is_self},
+#'   \code{body}, \code{msgtype}, \code{ts} (the event's
+#'   \code{origin_server_ts}, in milliseconds since the epoch, or NULL
+#'   when the server omits it), and \code{mentions}.
 #' @examples
 #' sync_resp <- list(rooms = list(join = list("!room:example.org" = list(
 #'     timeline = list(events = list(list(type = "m.room.message",
@@ -127,6 +131,7 @@ mx_extract_text_events <- function(sync_resp, self_id, msgtypes = "m.text") {
                     event_id = ev$event_id, sender = ev$sender,
                     is_self = isTRUE(ev$sender == self_id),
                     body = ev$content$body, msgtype = ev$content$msgtype,
+                    ts = ev$origin_server_ts,
                     mentions = ev$content$`m.mentions`$user_ids)
             }
         }
