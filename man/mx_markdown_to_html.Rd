@@ -13,7 +13,7 @@ Character HTML suitable for m.room.message formatted_body.
 }
 \description{
 Supports headings, bullets, numbered lists, fenced code blocks, inline
-code, bold, and simple underscore emphasis.
+code, bold, simple underscore emphasis, and GitHub-style pipe tables.
 }
 \examples{
 mx_markdown_to_html("# Status\n- built\n- checked\n\nShip `0.1.0` **soon**")

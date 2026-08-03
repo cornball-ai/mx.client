@@ -50,6 +50,18 @@
   against tampered fixture responses. `R/transport.R` previously had no
   test file at all.
 
+# mx.client 0.1.1.2
+
+* New: `mx_table_html()` and `mx_send_table()` render a data frame,
+  matrix, or list as the conservative Matrix table HTML that clients such
+  as FluffyChat 2.6.0+ accept: a bare `<table>` of `<tr>`, `<th>`, and
+  `<td>` nodes, with no CSS, colspan, rowspan, or custom attributes.
+  A plain-text `body` is generated alongside for clients that ignore
+  `formatted_body`.
+* `mx_markdown_to_html()` converts GitHub-style pipe tables to the same
+  table HTML, honouring the `:---`/`:---:`/`---:` alignment row.
+* New: `inst/skills/mx.client/matrix-messaging/SKILL.md`.
+
 # mx.client 0.1.1.1
 
 * `mx_extract_text_events()` keeps the event's `origin_server_ts` as a
