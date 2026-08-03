@@ -55,9 +55,14 @@ mx_crypto_publish_keys <- function(client, account, store_dir, n_otks = 50L) {
 #'
 #' Queries \code{/keys/query} and flattens the result to a list of devices.
 #'
+#' Devices are returned only if their Ed25519 self-signature verifies
+#' against the identity the homeserver claims for them. A device that
+#' fails is dropped with a warning naming it, and the remaining devices
+#' are still returned: one bad device must not make a room unusable.
+#'
 #' @param client Matrix client config.
 #' @param user_ids Character vector of Matrix user ids.
-#' @return List of devices, each \code{list(user_id, device_id,
+#' @return List of verified devices, each \code{list(user_id, device_id,
 #'   curve25519, ed25519)}.
 #' @examples
 #' \dontrun{
@@ -69,14 +74,35 @@ mx_crypto_known_devices <- function(client, user_ids) {
     s <- mx_client_session(client)
     query <- stats::setNames(rep(list(list()), length(user_ids)), user_ids)
     resp <- mx.api::mx_keys_query(s, device_keys = query)
+    mx_crypto_verify_device_map(resp$device_keys)
+}
+
+# Verify every device in a parsed /keys/query device_keys map.
+#
+# Split out from the HTTP call so the verification logic is testable
+# against fixture responses without a homeserver. The homeserver is not
+# trusted here: without this check it can substitute its own Curve25519
+# key for any device and read everything sent to that user.
+#
+# mxc_verify_device_keys() raises on failure rather than returning FALSE,
+# and returns the keys it actually checked -- use those, not the raw map.
+mx_crypto_verify_device_map <- function(device_keys_map) {
     out <- list()
-    dk <- resp$device_keys %||% list()
-    for (uid in names(dk)) {
-        for (dev in names(dk[[uid]])) {
-            keys <- dk[[uid]][[dev]]$keys
+    for (uid in names(device_keys_map %||% list())) {
+        devs <- device_keys_map[[uid]]
+        for (dev in names(devs %||% list())) {
+            keys <- tryCatch(
+                             mx.crypto::mxc_verify_device_keys(devs[[dev]], uid, dev),
+                             error = function(e) {
+                warning("mx.client: skipping unverified device ", uid, "/",
+                        dev, ": ", conditionMessage(e), call. = FALSE)
+                NULL
+            })
+            if (is.null(keys)) {
+                next
+            }
             out[[length(out) + 1L]] <- list(user_id = uid, device_id = dev,
-                curve25519 = keys[[paste0("curve25519:", dev)]],
-                ed25519 = keys[[paste0("ed25519:", dev)]])
+                curve25519 = keys$curve25519, ed25519 = keys$ed25519)
         }
     }
     out
@@ -87,10 +113,15 @@ mx_crypto_known_devices <- function(client, user_ids) {
 #' Calls \code{/keys/claim} and attaches the claimed key to each device as
 #' \code{$otk}, ready for \code{mx_crypto_encrypt_for_devices()}.
 #'
+#' Each claimed key's signature is checked against the device's Ed25519
+#' key, which must itself have come from a verified \code{device_keys}
+#' (that is, from \code{mx_crypto_known_devices()}). A key that fails is
+#' dropped with a warning and its device comes back with no \code{otk}.
+#'
 #' @param client Matrix client config.
 #' @param devices List of devices from \code{mx_crypto_known_devices()}.
 #' @return The devices with an \code{otk} field added where one was
-#'   claimed.
+#'   claimed and verified.
 #' @examples
 #' \dontrun{
 #' devs <- mx_crypto_claim_otks(client, mx_crypto_known_devices(client, uid))
@@ -108,12 +139,45 @@ mx_crypto_claim_otks <- function(client, devices) {
                               stats::setNames(list("signed_curve25519"), d$device_id))
     }
     resp <- mx.api::mx_keys_claim(s, one_time_keys = req)
-    claimed <- resp$one_time_keys %||% list()
+    mx_crypto_verify_claimed_otks(devices, resp$one_time_keys %||% list())
+}
+
+# Attach verified one-time keys from a parsed /keys/claim response.
+#
+# Split from the HTTP call to keep it testable. The previous code took
+# slot[[1]]$key and dropped the signatures beside it, so a homeserver
+# could hand back a one-time key it had minted itself and we would open
+# an Olm session to a device it controls.
+#
+# mxc_verify_one_time_key() deliberately will not look the signing key up
+# for us, since doing so would re-trust the same response it is checking.
+# That is why d$ed25519 has to come from an already-verified device.
+mx_crypto_verify_claimed_otks <- function(devices, claimed) {
     lapply(devices, function(d) {
         slot <- claimed[[d$user_id]][[d$device_id]]
-        if (length(slot)) {
-            # slot is "signed_curve25519:<id>" -> {key, signatures}
-            d$otk <- slot[[1]]$key
+        if (!length(slot) || is.null(names(slot))) {
+            return(d)
+        }
+        if (is.null(d$ed25519) || !nzchar(d$ed25519)) {
+            warning("mx.client: no verified ed25519 key for ", d$user_id,
+                    "/", d$device_id, "; cannot check its one-time key",
+                    call. = FALSE)
+            return(d)
+        }
+        # slot is "signed_curve25519:<id>" -> {key, signatures}; the outer
+        # map key is part of what gets verified, so keep it.
+        algo_kid <- names(slot)[[1]]
+        otk <- tryCatch(
+                        mx.crypto::mxc_verify_one_time_key(algo_kid, slot[[1]], d$ed25519,
+                d$user_id, d$device_id),
+                        error = function(e) {
+            warning("mx.client: rejecting one-time key for ", d$user_id,
+                    "/", d$device_id, ": ", conditionMessage(e),
+                    call. = FALSE)
+            NULL
+        })
+        if (!is.null(otk)) {
+            d$otk <- otk
         }
         d
     })
@@ -159,11 +223,23 @@ mx_send_encrypted <- function(client, account, sessions, room_id, content,
         }, devs)
         need <- Filter(function(d) is.null(sessions$olm[[d$curve25519]]), devs)
         have <- Filter(function(d) !is.null(sessions$olm[[d$curve25519]]), devs)
-        recipients <- c(mx_crypto_claim_otks(client, need), have)
+        claimed <- mx_crypto_claim_otks(client, need)
+        # A device whose one-time key failed verification has no usable otk.
+        # Drop it rather than letting encrypt_for_devices abort the send:
+        # the remaining devices should still get the message.
+        usable <- Filter(function(d) !is.null(d$otk), claimed)
+        if (length(usable) < length(claimed)) {
+            warning("mx.client: ", length(claimed) - length(usable), " of ",
+                    length(claimed), " new devices in ", room_id,
+                    " had no usable one-time key and were skipped",
+                    call. = FALSE)
+        }
+        recipients <- c(usable, have)
     }
 
     out <- mx_crypto_encrypt_for_devices(account, sessions, room_id,
-        content, sender_curve, client$device_id, recipients = recipients)
+        content, sender_curve, client$device_id, recipients = recipients,
+        sender_user_id = client$user_id)
     for (p in out$to_device) {
         messages <- stats::setNames(
                                     list(stats::setNames(list(p$content), p$device_id)), p$user_id)

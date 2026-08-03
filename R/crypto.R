@@ -182,23 +182,38 @@ mx_crypto_device_keys <- function(account, user_id, device_id) {
 #' @param recipient_curve25519 Character. Target device's Curve25519 key.
 #' @param room_id Character. Room the key is for.
 #' @param megolm_out An outbound Megolm session.
+#' @param sender_user_id Character. This user's Matrix id.
+#' @param sender_ed25519 Character. This device's Ed25519 key.
+#' @param recipient_user_id Character. Target user's Matrix id.
+#' @param recipient_ed25519 Character. Target device's Ed25519 key.
 #' @return A named list: the to-device \code{m.room.encrypted} content.
 #' @examples
 #' \dontrun{
 #' content <- mx_crypto_room_key_payload(olm, my_curve, their_curve,
-#'                                       "!room:ex", megolm_out)
+#'                                       "!room:ex", megolm_out,
+#'                                       "@me:ex", my_ed, "@them:ex", their_ed)
 #' }
 #' @export
 mx_crypto_room_key_payload <- function(olm_session, sender_curve25519,
                                        recipient_curve25519, room_id,
-                                       megolm_out) {
+                                       megolm_out, sender_user_id,
+                                       sender_ed25519, recipient_user_id,
+                                       recipient_ed25519) {
     mx_require_crypto()
     info <- mx.crypto::mxc_megolm_outbound_info(megolm_out)
+    # The sender/recipient/keys block is not decoration: it is what lets
+    # the receiving device attribute the key to us and confirm the message
+    # was addressed to it. Omitting it (as this did before) leaves the
+    # payload unauthenticatable and other clients reject it outright.
     room_key <- list(
                      type = "m.room_key",
                      content = list(algorithm = MX_MEGOLM, room_id = room_id,
                                     session_id = info$session_id,
-                                    session_key = info$session_key)
+                                    session_key = info$session_key),
+                     sender = sender_user_id,
+                     recipient = recipient_user_id,
+                     recipient_keys = list(ed25519 = recipient_ed25519),
+                     keys = list(ed25519 = sender_ed25519)
     )
     plaintext <- mx.api::mx_canonical_json(room_key)
     ct <- mx.crypto::mxc_olm_encrypt(olm_session, charToRaw(plaintext))
@@ -214,6 +229,76 @@ mx_crypto_room_key_payload <- function(olm_session, sender_curve25519,
 
 # ---- inbound (receive room key + decrypt) ----------------------------
 
+# Confirm a decrypted Olm payload was addressed to us.
+#
+# An Olm message decrypting successfully only proves it was encrypted to
+# our Curve25519 key. It does not prove the sender meant it for us in this
+# context: a homeserver can replay a payload it captured elsewhere. The
+# spec's defence is the recipient block inside the plaintext, which is
+# covered by the ratchet and so cannot be rewritten by the server.
+#
+# Returns list(ok, bound). ok = FALSE (with a warning) means discard the
+# payload. bound = TRUE means the claimed sender identity was tied to a
+# device whose keys we verified via /keys/query; only then may anything
+# downstream be reported as sender-verified.
+#
+# self_id may be NULL, in which case the user-id half of the recipient
+# check is skipped; callers that know their own id should always pass it.
+mx_crypto_check_olm_payload <- function(decoded, self_id, self_ed25519,
+                                        sender_curve25519 = NULL,
+                                        devices = NULL) {
+    if (!is.null(self_id) && !identical(decoded$recipient, self_id)) {
+        warning("mx.client: dropping Olm payload addressed to ",
+                decoded$recipient %||% "<missing>", ", not ", self_id,
+                call. = FALSE)
+        return(list(ok = FALSE, bound = FALSE))
+    }
+    if (!identical(decoded$recipient_keys$ed25519, self_ed25519)) {
+        warning("mx.client: dropping Olm payload whose recipient_keys do ",
+                "not match this device's Ed25519 key", call. = FALSE)
+        return(list(ok = FALSE, bound = FALSE))
+    }
+    if (is.null(decoded$sender) || is.null(decoded$keys$ed25519)) {
+        warning("mx.client: dropping Olm payload with no sender identity",
+                call. = FALSE)
+        return(list(ok = FALSE, bound = FALSE))
+    }
+    list(ok = TRUE,
+         bound = mx_crypto_sender_bound(decoded, sender_curve25519, devices))
+}
+
+# Tie a payload's claimed sender to a verified device.
+#
+# The sender/keys block inside the plaintext is written by whoever holds
+# the Olm session, and anyone can open one to us: our Curve25519 key and
+# our one-time keys are both public. So the claim on its own is worth
+# nothing. Comparing it against the cleartext envelope is no better,
+# because a hostile homeserver writes both halves and can simply make
+# them agree.
+#
+# The way out is the one thing the server cannot forge: a device_keys
+# object carrying a valid self-signature, which is what
+# mx_crypto_known_devices() returns. Requiring (sender, ed25519,
+# curve25519) to match one of those as a triple binds the claim to a real
+# device. Without a device list there is nothing to bind against, so the
+# answer is FALSE and callers must not claim verification.
+mx_crypto_sender_bound <- function(decoded, sender_curve25519, devices) {
+    if (is.null(devices) || !length(devices) || is.null(sender_curve25519)) {
+        return(FALSE)
+    }
+    for (d in devices) {
+        if (identical(d$user_id, decoded$sender) &&
+            identical(d$ed25519, decoded$keys$ed25519) &&
+            identical(d$curve25519, sender_curve25519)) {
+            return(TRUE)
+        }
+    }
+    warning("mx.client: Olm payload claims sender ", decoded$sender,
+            " but no verified device matches its identity keys; treating ",
+            "it as unattributed", call. = FALSE)
+    FALSE
+}
+
 #' Decrypt an inbound Olm to-device payload
 #'
 #' Accepts an \code{m.room.encrypted} to-device content addressed to this
@@ -221,23 +306,46 @@ mx_crypto_room_key_payload <- function(olm_session, sender_curve25519,
 #' the caller builds an inbound Megolm session from
 #' \code{content$session_key} with \code{mx_crypto_inbound_session()}.
 #'
+#' The decrypted payload is checked against this device's identity before
+#' it is returned: a message that does not name us as recipient is
+#' dropped, because decrypting successfully only proves it was encrypted
+#' to our key, not that it was meant for us here.
+#'
 #' @param account An mx.crypto account handle.
 #' @param my_curve25519 Character. This device's Curve25519 key.
 #' @param content The to-device \code{m.room.encrypted} content.
-#' @return The decrypted event (a parsed list), or NULL if not for us.
+#' @param self_id Character or NULL. This user's Matrix id. When NULL the
+#'   recipient user-id check is skipped; pass it whenever it is known.
+#' @param self_ed25519 Character or NULL. This device's Ed25519 key.
+#'   Defaults to the account's own key.
+#' @param devices List of verified devices from
+#'   \code{mx_crypto_known_devices()}, or NULL. Used to tie the payload's
+#'   claimed sender to a device whose keys were verified. The result
+#'   carries \code{sender_bound}, which is FALSE when no list is supplied
+#'   or nothing matches; an unbound sender identity is a claim, not a
+#'   fact, because anyone can open an Olm session to this device.
+#' @return The decrypted event (a parsed list) with a \code{sender_bound}
+#'   flag, or NULL if it was not for us or failed the recipient checks.
 #' @examples
 #' \dontrun{
-#' ev <- mx_crypto_handle_to_device(acct, my_curve, td_content)
-#' if (identical(ev$type, "m.room_key")) {
+#' ev <- mx_crypto_handle_to_device(acct, my_curve, td_content,
+#'                                  self_id = "@me:example.org",
+#'                                  devices = mx_crypto_known_devices(cl, uid))
+#' if (identical(ev$type, "m.room_key") && isTRUE(ev$sender_bound)) {
 #'   inb <- mx_crypto_inbound_session(ev$content$session_key)
 #' }
 #' }
 #' @export
-mx_crypto_handle_to_device <- function(account, my_curve25519, content) {
+mx_crypto_handle_to_device <- function(account, my_curve25519, content,
+                                       self_id = NULL, self_ed25519 = NULL,
+                                       devices = NULL) {
     mx_require_crypto()
     msg <- content$ciphertext[[my_curve25519]]
     if (is.null(msg)) {
         return(NULL)
+    }
+    if (is.null(self_ed25519)) {
+        self_ed25519 <- mx.crypto::mxc_account_identity_keys(account)$ed25519
     }
     sender <- content$sender_key
     if (identical(as.integer(msg$type), 0L)) {
@@ -248,7 +356,14 @@ mx_crypto_handle_to_device <- function(account, my_curve25519, content) {
         stop("no established Olm session for a non-prekey to-device message",
              call. = FALSE)
     }
-    jsonlite::fromJSON(plaintext, simplifyVector = FALSE)
+    decoded <- jsonlite::fromJSON(plaintext, simplifyVector = FALSE)
+    chk <- mx_crypto_check_olm_payload(decoded, self_id, self_ed25519, sender,
+                                       devices)
+    if (!chk$ok) {
+        return(NULL)
+    }
+    decoded$sender_bound <- chk$bound
+    decoded
 }
 
 #' Build an inbound Megolm session from a shared room key
