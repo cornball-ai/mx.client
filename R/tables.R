@@ -13,14 +13,18 @@ mx_table_coerce <- function(x) {
     stop("x must be a data.frame, matrix, or list", call. = FALSE)
 }
 
-mx_table_plain <- function(x) {
+mx_table_plain <- function(x, header = TRUE) {
     x <- mx_table_coerce(x)
-    header <- paste(names(x), collapse = " | ")
     rows <- vapply(seq_len(nrow(x)), function(i) {
         paste(vapply(x[i,, drop = FALSE], as.character, character(1)),
               collapse = " | ")
     }, character(1))
-    paste(c(header, rows), collapse = "\n")
+    # Track the HTML: emitting column names in the fallback while the
+    # formatted_body omits them shows different tables to different clients.
+    if (isTRUE(header)) {
+        rows <- c(paste(names(x), collapse = " | "), rows)
+    }
+    paste(rows, collapse = "\n")
 }
 
 #' Render tabular data as Matrix custom HTML
@@ -78,7 +82,7 @@ mx_table_html <- function(x, header = TRUE) {
 mx_send_table <- function(client, x, room = NULL, header = TRUE,
                           title = NULL, room_cache = NULL, dry_run = FALSE) {
     html <- mx_table_html(x, header = header)
-    body <- mx_table_plain(x)
+    body <- mx_table_plain(x, header = header)
     if (!is.null(title) && nzchar(title)) {
         body <- paste(as.character(title), body, sep = "\n")
     }

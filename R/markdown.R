@@ -182,7 +182,9 @@ mx_markdown_to_html <- function(text) {
             i <- i + 1L
             next
         }
-        o <- regexec("^\\s*[0-9]+\\.\\s+(.+)$", ln, perl = TRUE)
+        # Both "1." and "1)" are ordered-list markers; matching only the
+        # dot silently renders "1)" input as a paragraph.
+        o <- regexec("^\\s*[0-9]+[.)]\\s+(.+)$", ln, perl = TRUE)
         om <- regmatches(ln, o)[[1]]
         if (length(om)) {
             if (in_ul) {

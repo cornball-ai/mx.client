@@ -63,3 +63,10 @@ expect_true(grepl("<p><strong>CRAN downloads weekly</strong>", known_good,
 expect_true(grepl("<td><code>tinyoauth</code></td>", known_good, fixed = TRUE))
 expect_true(grepl("<td align=\"right\">2,395</td>", known_good, fixed = TRUE))
 expect_true(grepl("Partial period", known_good, fixed = TRUE))
+
+# Ordered lists accept both "1." and "1)" markers. There was no coverage
+# here, which is how a rewrite that dropped ")" support went unnoticed.
+expect_equal(mx.client::mx_markdown_to_html("1. first\n2. second"),
+             "<ol><li>first</li><li>second</li></ol>")
+expect_equal(mx.client::mx_markdown_to_html("1) first\n2) second"),
+             "<ol><li>first</li><li>second</li></ol>")
