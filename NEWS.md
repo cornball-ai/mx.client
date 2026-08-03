@@ -6,6 +6,16 @@
   and every other field stay visible. `unclass()` still exposes the raw
   values for the cases that need them.
 
+# mx.client 0.1.1.4
+
+* New `mx_set_displayname(client, name)`: client-level wrapper over
+  `mx.api::mx_set_displayname()` that builds the session from the
+  client config and retries once through `mx_with_relogin()` on a
+  rejected token, so long-running bots can rename themselves without
+  hand-rolling session or relogin plumbing. Extracted from corteza's
+  Matrix model badge (corteza#155), which keeps the badge policy and
+  calls this for the profile update.
+
 # mx.client 0.1.1.3
 
 * **HIGH** (security): homeserver-supplied keys are now verified before
