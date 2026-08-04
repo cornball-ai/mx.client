@@ -1,25 +1,9 @@
-# mx.client 0.1.1.5
+# mx.client 0.2.0
 
-* `print()` method for `mx_client_config`: masks `token` and `password`
-  as `<hidden>` (or `<unset>` when empty) instead of falling through to
-  the default list print, which showed credentials verbatim. `sync_token`
-  and every other field stay visible. `unclass()` still exposes the raw
-  values for the cases that need them.
+## Security
 
-# mx.client 0.1.1.4
-
-* New `mx_set_displayname(client, name)`: client-level wrapper over
-  `mx.api::mx_set_displayname()` that builds the session from the
-  client config and retries once through `mx_with_relogin()` on a
-  rejected token, so long-running bots can rename themselves without
-  hand-rolling session or relogin plumbing. Extracted from corteza's
-  Matrix model badge (corteza#155), which keeps the badge policy and
-  calls this for the profile update.
-
-# mx.client 0.1.1.3
-
-* **HIGH** (security): homeserver-supplied keys are now verified before
-  use. `mx_crypto_known_devices()` checks each device's Ed25519
+* **HIGH**: homeserver-supplied keys are now verified before use.
+  `mx_crypto_known_devices()` checks each device's Ed25519
   self-signature with `mx.crypto::mxc_verify_device_keys()`, and
   `mx_crypto_claim_otks()` checks each claimed one-time key with
   `mx.crypto::mxc_verify_one_time_key()` against that verified Ed25519.
@@ -28,12 +12,12 @@
   Curve25519 key for any device and read everything sent to that user.
   A device that fails verification is dropped with a warning and the
   remaining devices still receive the message.
-* **HIGH** (security): Olm to-device payloads now carry the
-  `sender`, `recipient`, `recipient_keys`, and `keys` fields the spec
-  requires. `mx_crypto_room_key_payload()` emitted only `type` and
-  `content`, leaving the receiver nothing to authenticate against;
-  other clients reject such payloads.
-* **HIGH** (security): `mx_crypto_process_sync()` and
+* **HIGH**: Olm to-device payloads now carry the `sender`,
+  `recipient`, `recipient_keys`, and `keys` fields the spec requires.
+  `mx_crypto_room_key_payload()` emitted only `type` and `content`,
+  leaving the receiver nothing to authenticate against; other clients
+  reject such payloads.
+* **HIGH**: `mx_crypto_process_sync()` and
   `mx_crypto_handle_to_device()` now confirm a decrypted Olm payload
   names this device as recipient before acting on it. Decrypting only
   proves the message was encrypted to our key, not that it was meant
@@ -51,41 +35,58 @@
   on its own: a hostile homeserver writes both, so it can make them
   corroborate each other. Binding to a self-signed `device_keys` object
   is the part it cannot forge. Callers that pass no `devices` still
-  decrypt but always get `sender_verified = FALSE`, as do events
-  decrypted with a session from a store written before this change.
-* `mx_crypto_room_key_payload()` gains `sender_user_id`,
-  `sender_ed25519`, `recipient_user_id`, and `recipient_ed25519`;
-  `mx_crypto_encrypt_for_devices()` gains `sender_user_id` and now
-  requires each recipient to carry a verified `ed25519`;
-  `mx_crypto_handle_to_device()` gains `self_id`, `self_ed25519`, and
-  `devices`, and its result carries `sender_bound`.
-* Session stores written before this release still load: a bare
-  `megolm_in` pickle is read as a session with no attested sender
-  rather than discarded, so a running client keeps its history.
-* `Suggests: mx.crypto (>= 0.2.0)`, the first version providing the
-  verification helpers.
-* New `inst/tinytest/test_transport.R` covers the verification paths
-  against tampered fixture responses. `R/transport.R` previously had no
-  test file at all.
+  decrypt but always get `sender_verified = FALSE`.
 
-# mx.client 0.1.1.2
+## Breaking changes
 
-* New: `mx_table_html()` and `mx_send_table()` render a data frame,
-  matrix, or list as the conservative Matrix table HTML that clients such
-  as FluffyChat 2.6.0+ accept: a bare `<table>` of `<tr>`, `<th>`, and
-  `<td>` nodes, with no CSS, colspan, rowspan, or custom attributes.
-  A plain-text `body` is generated alongside for clients that ignore
+* `mx_crypto_room_key_payload()` requires four further arguments:
+  `sender_user_id`, `sender_ed25519`, `recipient_user_id`, and
+  `recipient_ed25519`. They are what the payload's authentication block
+  is built from, so they have no defaults; a five-argument call now
+  errors rather than silently emitting an unauthenticatable payload.
+* `mx_crypto_encrypt_for_devices()` gains `sender_user_id` and now
+  requires each recipient to carry a verified `ed25519`. Recipients
+  from `mx_crypto_known_devices()` already do.
+* `mx_crypto_handle_to_device()` gains `self_id`, `self_ed25519`, and
+  `devices`; its result carries `sender_bound`.
+
+## New
+
+* `mx_table_html()` and `mx_send_table()` render a data frame, matrix,
+  or list as the conservative Matrix table HTML that clients such as
+  FluffyChat 2.6.0+ accept: a bare `<table>` of `<tr>`, `<th>`, and
+  `<td>` nodes, with no CSS, colspan, rowspan, or custom attributes. A
+  plain-text `body` is generated alongside for clients that ignore
   `formatted_body`.
 * `mx_markdown_to_html()` converts GitHub-style pipe tables to the same
   table HTML, honouring the `:---`/`:---:`/`---:` alignment row.
-* New: `inst/skills/mx.client/matrix-messaging/SKILL.md`.
+* `mx_set_displayname(client, name)`: client-level wrapper over
+  `mx.api::mx_set_displayname()` that builds the session from the client
+  config and retries once through `mx_with_relogin()` on a rejected
+  token, so long-running bots can rename themselves without
+  hand-rolling session or relogin plumbing.
+* `print()` method for `mx_client_config` masks `token` and `password`
+  as `<hidden>` (or `<unset>` when empty) instead of falling through to
+  the default list print, which showed credentials verbatim.
+  `sync_token` and every other field stay visible; `unclass()` still
+  exposes the raw values.
 
-# mx.client 0.1.1.1
+## Other
 
 * `mx_extract_text_events()` keeps the event's `origin_server_ts` as a
   `ts` field (milliseconds since the epoch, NULL when the server omits
   it). Records previously carried no time at all, leaving consumers to
   stamp messages with their own poll clock.
+* Session stores written before this release still load: a bare
+  `megolm_in` pickle is read as a session with no attested sender
+  rather than discarded, so a running client keeps its history. Events
+  decrypted with such a session report `sender_verified = FALSE`.
+* `Suggests: mx.crypto (>= 0.2.0)`, the first version providing the
+  verification helpers.
+* New `inst/skills/mx.client/matrix-messaging/SKILL.md`.
+* New `inst/tinytest/test_transport.R` covers the key-verification
+  paths against tampered fixture responses. `R/transport.R` previously
+  had no test file at all.
 
 # mx.client 0.1.1
 
