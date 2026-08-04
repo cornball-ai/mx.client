@@ -49,7 +49,6 @@ are no reverse dependencies on CRAN.
 * Windows 10, R-devel (2026-07-21 r90286 ucrt): `R CMD check --as-cran`,
   Status OK
 * GitHub Actions (ubuntu-latest, macos-latest) via r-ci, R-release
-* win-builder R-devel and R-release
 
 ## Notes for the reviewer
 
