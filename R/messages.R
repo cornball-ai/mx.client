@@ -103,7 +103,15 @@ mx_sync_update <- function(client, timeout = 0L, filter = NULL, save = TRUE,
 #'   \code{room_id}, \code{event_id}, \code{sender}, \code{is_self},
 #'   \code{body}, \code{msgtype}, \code{ts} (the event's
 #'   \code{origin_server_ts}, in milliseconds since the epoch, or NULL
-#'   when the server omits it), and \code{mentions}.
+#'   when the server omits it), \code{mentions}, and \code{relates_to}.
+#'
+#'   \code{relates_to} is the event's \code{m.relates_to} content,
+#'   verbatim, or NULL. It is what distinguishes a threaded reply
+#'   (\code{rel_type} of \code{m.thread}) from a rich reply (an
+#'   \code{m.in_reply_to} with no \code{rel_type}) from an edit
+#'   (\code{m.replace}), and dropping it left every caller unable to tell
+#'   any of them from an ordinary message. Passed through rather than
+#'   interpreted: which of those a caller cares about is its own business.
 #' @examples
 #' sync_resp <- list(rooms = list(join = list("!room:example.org" = list(
 #'     timeline = list(events = list(list(type = "m.room.message",
@@ -132,7 +140,8 @@ mx_extract_text_events <- function(sync_resp, self_id, msgtypes = "m.text") {
                     is_self = isTRUE(ev$sender == self_id),
                     body = ev$content$body, msgtype = ev$content$msgtype,
                     ts = ev$origin_server_ts,
-                    mentions = ev$content$`m.mentions`$user_ids)
+                    mentions = ev$content$`m.mentions`$user_ids,
+                    relates_to = ev$content$`m.relates_to`)
             }
         }
     }
@@ -188,6 +197,75 @@ mx_accept_invites <- function(client, invites) {
         }
     }
     joined
+}
+
+#' Extract reaction events from a sync response
+#'
+#' Walks joined-room timelines and returns every \code{m.reaction} that
+#' annotates another event. Self reactions are retained and tagged with
+#' \code{is_self}, the same way \code{\link{mx_extract_text_events}}
+#' treats the client's own messages: a consumer that wants only other
+#' people's reactions filters on the flag, and one tracking its own
+#' (which reactions it has already placed) needs them.
+#'
+#' This is the general form of \code{\link{mx_extract_reaction_verdict}},
+#' which answers one approve/deny question about one event. That function
+#' bakes in which keys mean yes and which mean no, and stays for callers
+#' who want that; this one reports keys and leaves their meaning alone.
+#'
+#' Only additions are reported. Removing a reaction is an
+#' \code{m.room.redaction} of the \code{m.reaction} event, which is not an
+#' \code{m.reaction} and so does not appear here -- a consumer that has to
+#' notice un-reactions needs to read redactions itself.
+#'
+#' @param sync_resp Parsed \code{/sync} response.
+#' @param self_id Current user's Matrix id.
+#' @return List of records, each carrying \code{room_id},
+#'   \code{event_id} (the reaction's own id, not its target),
+#'   \code{sender}, \code{is_self}, \code{target_event_id} (the annotated
+#'   event), \code{key} (the reaction text, usually an emoji), and
+#'   \code{ts} (\code{origin_server_ts} in milliseconds, or NULL when the
+#'   server omits it). An \code{m.reaction} carrying no annotation
+#'   relation, no target, or no key is not a reaction to anything and is
+#'   skipped.
+#' @examples
+#' sync_resp <- list(rooms = list(join = list("!room:example.org" = list(
+#'     timeline = list(events = list(list(type = "m.reaction",
+#'         event_id = "$r1", sender = "@alice:example.org",
+#'         content = list("m.relates_to" = list(rel_type = "m.annotation",
+#'             event_id = "$msg", key = "+1")))))))))
+#' mx_extract_reactions(sync_resp, self_id = "@bot:example.org")
+#' @export
+mx_extract_reactions <- function(sync_resp, self_id) {
+    joined <- sync_resp$rooms$join
+    if (!length(joined)) {
+        return(list())
+    }
+    out <- list()
+    for (rid in names(joined)) {
+        for (ev in joined[[rid]]$timeline$events %||% list()) {
+            if (!isTRUE(ev$type == "m.reaction")) {
+                next
+            }
+            rel <- ev$content$`m.relates_to`
+            # rel_type is checked rather than assumed: m.reaction is
+            # defined to carry m.annotation, and an event using it for
+            # something else is not a reaction whose target we can name.
+            if (!is.list(rel) || !isTRUE(rel$rel_type == "m.annotation")) {
+                next
+            }
+            if (!is.character(rel$event_id) || !length(rel$event_id) ||
+                !is.character(rel$key) || !length(rel$key)) {
+                next
+            }
+            out[[length(out) + 1L]] <- list(room_id = rid,
+                event_id = ev$event_id, sender = ev$sender,
+                is_self = isTRUE(ev$sender == self_id),
+                target_event_id = rel$event_id, key = rel$key,
+                ts = ev$origin_server_ts)
+        }
+    }
+    out
 }
 
 #' Extract a reaction approval verdict from sync events

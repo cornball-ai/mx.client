@@ -112,6 +112,124 @@ expect_null(mx.client::mx_extract_reaction_verdict(
     reaction_sync, "!missing:ex", "@bot:ex", "$target"
 ))
 
+# --- Message relations survive extraction ---
+# m.relates_to is what tells a threaded reply from a rich reply from an
+# edit. Dropping it left every caller unable to tell any of them from an
+# ordinary message.
+
+rel_sync <- list(rooms = list(join = list("!r:ex" = list(timeline = list(
+    events = list(
+        list(type = "m.room.message", event_id = "$plain", sender = "@a:ex",
+             content = list(msgtype = "m.text", body = "hello")),
+        list(type = "m.room.message", event_id = "$thread", sender = "@a:ex",
+             content = list(msgtype = "m.text", body = "in a thread",
+                            `m.relates_to` = list(rel_type = "m.thread",
+                                                  event_id = "$root"))),
+        list(type = "m.room.message", event_id = "$reply", sender = "@a:ex",
+             content = list(msgtype = "m.text", body = "a rich reply",
+                            `m.relates_to` = list(
+                                `m.in_reply_to` = list(event_id = "$orig"))))
+    ))))))
+rel <- mx.client::mx_extract_text_events(rel_sync, "@bot:ex")
+expect_equal(length(rel), 3L)
+# An ordinary message has no relation, and NULL is the answer -- not an
+# empty list a caller has to test the shape of.
+expect_null(rel[[1]]$relates_to)
+# A thread carries its rel_type and root.
+expect_equal(rel[[2]]$relates_to$rel_type, "m.thread")
+expect_equal(rel[[2]]$relates_to$event_id, "$root")
+# A rich reply has no rel_type at all, which is exactly how it differs
+# from a thread. Passed through verbatim rather than normalized, so the
+# caller can tell.
+expect_null(rel[[3]]$relates_to$rel_type)
+expect_equal(rel[[3]]$relates_to$`m.in_reply_to`$event_id, "$orig")
+# The fields that were already there are unchanged.
+expect_equal(rel[[2]]$body, "in a thread")
+expect_equal(rel[[2]]$event_id, "$thread")
+
+# --- General reaction extraction ---
+# mx_extract_reaction_verdict() answers one approve/deny question about
+# one event, with the key semantics baked in. This reports every reaction
+# and leaves what the keys mean to the caller.
+
+rx_sync <- list(rooms = list(join = list(
+    "!r:ex" = list(timeline = list(events = list(
+        list(type = "m.reaction", event_id = "$r1", sender = "@alice:ex",
+             origin_server_ts = 1700000000000,
+             content = list(`m.relates_to` = list(rel_type = "m.annotation",
+                                                  event_id = "$msg",
+                                                  key = "\U0001F44D"))),
+        list(type = "m.reaction", event_id = "$r2", sender = "@bot:ex",
+             content = list(`m.relates_to` = list(rel_type = "m.annotation",
+                                                  event_id = "$msg",
+                                                  key = "eyes"))),
+        # An ordinary message in the same timeline is not a reaction.
+        list(type = "m.room.message", event_id = "$m1", sender = "@alice:ex",
+             content = list(msgtype = "m.text", body = "hello"))
+    ))),
+    "!other:ex" = list(timeline = list(events = list(
+        list(type = "m.reaction", event_id = "$r3", sender = "@carol:ex",
+             content = list(`m.relates_to` = list(rel_type = "m.annotation",
+                                                  event_id = "$elsewhere",
+                                                  key = "x")))
+    )))
+)))
+
+rx <- mx.client::mx_extract_reactions(rx_sync, "@bot:ex")
+expect_equal(length(rx), 3L)
+# Every room is walked, not just the first.
+expect_equal(sort(vapply(rx, function(r) r$room_id, "")),
+             c("!other:ex", "!r:ex", "!r:ex"))
+# event_id is the reaction's own, and the annotated event is separate --
+# conflating them is the mistake this record shape exists to prevent.
+expect_equal(rx[[1]]$event_id, "$r1")
+expect_equal(rx[[1]]$target_event_id, "$msg")
+expect_equal(rx[[1]]$sender, "@alice:ex")
+expect_equal(rx[[1]]$key, "\U0001F44D")
+expect_equal(rx[[1]]$ts, 1700000000000)
+# Self reactions are kept and tagged, like self messages: a consumer
+# tracking which reactions it has already placed needs them.
+expect_false(rx[[1]]$is_self)
+expect_true(rx[[2]]$is_self)
+expect_equal(rx[[2]]$key, "eyes")
+# A server that omits origin_server_ts leaves ts NULL rather than
+# inventing one.
+expect_null(rx[[2]]$ts)
+
+# An m.reaction that annotates nothing is not a reaction to anything.
+malformed <- list(rooms = list(join = list("!r:ex" = list(timeline = list(
+    events = list(
+        # no m.relates_to at all
+        list(type = "m.reaction", event_id = "$a", sender = "@alice:ex",
+             content = list()),
+        # a relation that is not an annotation
+        list(type = "m.reaction", event_id = "$b", sender = "@alice:ex",
+             content = list(`m.relates_to` = list(rel_type = "m.thread",
+                                                  event_id = "$msg",
+                                                  key = "x"))),
+        # annotation with no target
+        list(type = "m.reaction", event_id = "$c", sender = "@alice:ex",
+             content = list(`m.relates_to` = list(rel_type = "m.annotation",
+                                                  key = "x"))),
+        # annotation with no key
+        list(type = "m.reaction", event_id = "$d", sender = "@alice:ex",
+             content = list(`m.relates_to` = list(rel_type = "m.annotation",
+                                                  event_id = "$msg")))
+    ))))))
+expect_equal(length(mx.client::mx_extract_reactions(malformed, "@bot:ex")), 0L)
+
+# Empty and message-only syncs return an empty list, not an error.
+expect_equal(length(mx.client::mx_extract_reactions(list(), "@bot:ex")), 0L)
+expect_equal(length(mx.client::mx_extract_reactions(
+    list(rooms = list(join = list())), "@bot:ex")), 0L)
+expect_equal(length(mx.client::mx_extract_reactions(
+    list(rooms = list(join = list("!r:ex" = list(timeline = list(
+        events = list(list(type = "m.room.message", event_id = "$m",
+                           sender = "@a:ex",
+                           content = list(msgtype = "m.text",
+                                          body = "hi")))))))),
+    "@bot:ex")), 0L)
+
 if (is.na(old_env)) {
     Sys.unsetenv("MX_CLIENT_TEST_MATRIX_CONFIG")
 } else {

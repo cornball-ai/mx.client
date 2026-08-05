@@ -17,7 +17,15 @@ List of normalized event records, each carrying
   \code{room_id}, \code{event_id}, \code{sender}, \code{is_self},
   \code{body}, \code{msgtype}, \code{ts} (the event's
   \code{origin_server_ts}, in milliseconds since the epoch, or NULL
-  when the server omits it), and \code{mentions}.
+  when the server omits it), \code{mentions}, and \code{relates_to}.
+
+  \code{relates_to} is the event's \code{m.relates_to} content,
+  verbatim, or NULL. It is what distinguishes a threaded reply
+  (\code{rel_type} of \code{m.thread}) from a rich reply (an
+  \code{m.in_reply_to} with no \code{rel_type}) from an edit
+  (\code{m.replace}), and dropping it left every caller unable to tell
+  any of them from an ordinary message. Passed through rather than
+  interpreted: which of those a caller cares about is its own business.
 }
 \description{
 Walks joined-room timeline events and returns normalized text-message

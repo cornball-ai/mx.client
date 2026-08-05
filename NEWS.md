@@ -1,3 +1,21 @@
+# mx.client 0.2.0.3
+
+## New
+
+* `mx_extract_reactions()` returns every `m.reaction` in a sync as a
+  record carrying `room_id`, `event_id` (the reaction, not its target),
+  `sender`, `is_self`, `target_event_id`, `key`, and `ts`. It is the
+  general form of `mx_extract_reaction_verdict()`, which answers one
+  approve/deny question about one event with the key semantics baked in;
+  that stays for callers who want it. Only additions are reported --
+  removing a reaction is a redaction of the `m.reaction` event, which a
+  consumer that needs to notice un-reactions has to read itself.
+
+* `mx_extract_text_events()` records now carry `relates_to`, the event's
+  `m.relates_to` content verbatim. It is what distinguishes a threaded
+  reply from a rich reply from an edit, and dropping it left every caller
+  unable to tell any of them from an ordinary message.
+
 # mx.client 0.2.0.2
 
 ## Security
