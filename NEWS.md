@@ -1,4 +1,4 @@
-# mx.client 0.2.0.1
+# mx.client 0.2.0.2
 
 ## Security
 
@@ -16,6 +16,14 @@
   event id for a message every recipient will fail to decrypt. Reaching
   zero now aborts. A room with no other devices at all is unaffected:
   that is a room of one, and sending to it is fine.
+  The guard counts what the homeserver named, not what survived
+  verification: counting survivors made a room whose only other device
+  is malformed indistinguishable from a room with no other device, and
+  only the second is safe to send to. `mx_crypto_verify_device_map()`
+  reports every `(user_id, device_id)` it was given on a `seen`
+  attribute so that distinction is available at all. An explicit
+  `recipients = list()` is refused too, since supplying recipients skips
+  discovery and every guard with it.
 
 * **HIGH**: `/keys/query` and `/keys/claim` answer 200 with a `failures`
   map when a server could not be reached, returning whatever they did

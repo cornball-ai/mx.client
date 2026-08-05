@@ -269,3 +269,113 @@ local({
     expect_identical(posted, 0L)
     unlink(store, recursive = TRUE)
 })
+
+bob_acct <- mx.crypto::mxc_account_new()
+
+# ---- An unverifiable device is not an absent one ----
+# The zero-recipient guard used to count what survived verification, so a
+# room whose only other device is malformed looked exactly like a room
+# with no other device -- nothing left to encrypt to either way, and only
+# one of those is a reason to go ahead.
+#
+# mx_crypto_verify_device_map() reports every (user_id, device_id) the
+# homeserver named on a "seen" attribute, verified or not.
+local({
+    # A device whose signatures block has been stripped: named by the
+    # homeserver, and not verifiable.
+    bad <- mx_crypto_device_keys(bob_acct, "@bob:example.org", "BOBDEV")
+    bad$signatures <- NULL
+    map <- list(`@bob:example.org` = stats::setNames(list(bad), "BOBDEV"))
+    devs <- suppressWarnings(mx.client:::mx_crypto_verify_device_map(map))
+    expect_equal(length(devs), 0L)
+    seen <- attr(devs, "seen")
+    expect_equal(length(seen), 1L)
+    expect_identical(seen[[1]][["user_id"]], "@bob:example.org")
+    expect_identical(seen[[1]][["device_id"]], "BOBDEV")
+})
+# A genuinely empty map reports nothing seen, which is what lets a room
+# of one still send.
+expect_equal(length(attr(mx.client:::mx_crypto_verify_device_map(list()),
+                         "seen")), 0L)
+# Verified devices are reported too, so the count is of everything named.
+expect_equal(length(attr(mx.client:::mx_crypto_verify_device_map(good_map),
+                         "seen")), 1L)
+
+# The send refuses when the only other device could not be verified.
+local({
+    me <- list(user_id = "@alice:example.org", device_id = "ALICEDEV",
+               server = "https://ex.invalid", token = "t")
+    bad <- mx_crypto_device_keys(bob_acct, "@bob:example.org", "BOBDEV")
+    bad$signatures <- NULL
+    posted <- 0L
+    o1 <- mx.api::mx_keys_query
+    assignInNamespace("mx_keys_query", function(...) list(device_keys = list(
+        `@bob:example.org` = stats::setNames(list(bad), "BOBDEV"))),
+        ns = "mx.api")
+    o2 <- mx.api::mx_send_event
+    assignInNamespace("mx_send_event", function(...) { posted <<- posted + 1L
+                                                       "$e" }, ns = "mx.api")
+    on.exit({
+        assignInNamespace("mx_keys_query", o1, ns = "mx.api")
+        assignInNamespace("mx_send_event", o2, ns = "mx.api")
+    })
+    acct <- mx.crypto::mxc_account_new()
+    store <- tempfile("sendstore5")
+    expect_error(suppressWarnings(
+        mx_send_encrypted(me, acct, mx_crypto_sessions_new(), "!r:ex",
+                          list(msgtype = "m.text", body = "hi"), store,
+                          member_ids = "@bob:example.org")),
+        "none usable")
+    expect_identical(posted, 0L)
+    unlink(store, recursive = TRUE)
+})
+
+# A member who has no devices at all is not that case. There is genuinely
+# nobody to share a key with, and the event still belongs in the room for
+# whatever device that member logs in later.
+local({
+    me <- list(user_id = "@alice:example.org", device_id = "ALICEDEV",
+               server = "https://ex.invalid", token = "t")
+    posted <- 0L
+    o1 <- mx.api::mx_keys_query
+    assignInNamespace("mx_keys_query", function(...) list(
+        device_keys = list(`@bob:example.org` = list())), ns = "mx.api")
+    o2 <- mx.api::mx_send_event
+    assignInNamespace("mx_send_event", function(...) { posted <<- posted + 1L
+                                                       "$nodev" }, ns = "mx.api")
+    on.exit({
+        assignInNamespace("mx_keys_query", o1, ns = "mx.api")
+        assignInNamespace("mx_send_event", o2, ns = "mx.api")
+    })
+    acct <- mx.crypto::mxc_account_new()
+    store <- tempfile("sendstore6")
+    res <- mx_send_encrypted(me, acct, mx_crypto_sessions_new(), "!r:ex",
+                             list(msgtype = "m.text", body = "hi"), store,
+                             member_ids = "@bob:example.org")
+    expect_identical(res$event_id, "$nodev")
+    expect_identical(posted, 1L)
+    unlink(store, recursive = TRUE)
+})
+
+# ---- An explicit empty recipient list is refused ----
+# Discovery is skipped entirely when a caller supplies recipients, so
+# every guard above is skipped with it. The event would be just as
+# unreadable.
+local({
+    me <- list(user_id = "@alice:example.org", device_id = "ALICEDEV",
+               server = "https://ex.invalid", token = "t")
+    posted <- 0L
+    o <- mx.api::mx_send_event
+    assignInNamespace("mx_send_event", function(...) { posted <<- posted + 1L
+                                                       "$e" }, ns = "mx.api")
+    on.exit(assignInNamespace("mx_send_event", o, ns = "mx.api"))
+    acct <- mx.crypto::mxc_account_new()
+    store <- tempfile("sendstore7")
+    expect_error(mx_send_encrypted(me, acct, mx_crypto_sessions_new(),
+                                   "!r:ex", list(msgtype = "m.text",
+                                                 body = "hi"), store,
+                                   recipients = list()),
+                 "recipients is empty")
+    expect_identical(posted, 0L)
+    unlink(store, recursive = TRUE)
+})

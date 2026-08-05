@@ -28,7 +28,11 @@ mx_send_encrypted(
 \item{store_dir}{Character. Crypto store directory.}
 
 \item{recipients}{List of recipient devices, or NULL to discover them
-from \code{member_ids}.}
+from \code{member_ids}. An empty list is an error: an
+\code{m.room.encrypted} event whose room key was shared with nobody
+is unreadable by everyone, and returning its event id would report
+that as a successful send. Discovery finding nobody is allowed, since
+a room whose other members have no devices is a real room.}
 
 \item{member_ids}{Character vector of room member user ids (used when
 \code{recipients} is NULL).}

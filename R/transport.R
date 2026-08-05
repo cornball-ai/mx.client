@@ -116,11 +116,19 @@ mx_crypto_report_failures <- function(failures, what, strict = FALSE) {
 #
 # mxc_verify_device_keys() raises on failure rather than returning FALSE,
 # and returns the keys it actually checked -- use those, not the raw map.
+#
+# Every (user_id, device_id) the homeserver named comes back on the
+# "seen" attribute, verified or not. Without it a caller cannot tell a
+# user with no devices from a user whose every device was dropped here,
+# and those need different answers: the first is nobody to encrypt to,
+# the second is everybody unreachable.
 mx_crypto_verify_device_map <- function(device_keys_map) {
     out <- list()
+    seen <- list()
     for (uid in names(device_keys_map %||% list())) {
         devs <- device_keys_map[[uid]]
         for (dev in names(devs %||% list())) {
+            seen[[length(seen) + 1L]] <- c(user_id = uid, device_id = dev)
             keys <- tryCatch(
                              mx.crypto::mxc_verify_device_keys(devs[[dev]], uid, dev),
                              error = function(e) {
@@ -135,6 +143,7 @@ mx_crypto_verify_device_map <- function(device_keys_map) {
                 curve25519 = keys$curve25519, ed25519 = keys$ed25519)
         }
     }
+    attr(out, "seen") <- seen
     out
 }
 
@@ -234,7 +243,11 @@ mx_crypto_verify_claimed_otks <- function(devices, claimed) {
 #' @param content Named list. Plaintext event content.
 #' @param store_dir Character. Crypto store directory.
 #' @param recipients List of recipient devices, or NULL to discover them
-#'   from \code{member_ids}.
+#'   from \code{member_ids}. An empty list is an error: an
+#'   \code{m.room.encrypted} event whose room key was shared with nobody
+#'   is unreadable by everyone, and returning its event id would report
+#'   that as a successful send. Discovery finding nobody is allowed, since
+#'   a room whose other members have no devices is a real room.
 #' @param member_ids Character vector of room member user ids (used when
 #'   \code{recipients} is NULL).
 #' @return List with \code{event_id} and the updated \code{sessions}.
@@ -256,7 +269,16 @@ mx_send_encrypted <- function(client, account, sessions, room_id, content,
         # devices unknown, and an unknown device is not an absent one. Read
         # the successful half of a partial response and a federation blip
         # becomes a message nobody can read.
-        devs <- mx_crypto_known_devices(client, member_ids, strict = TRUE)
+        found <- mx_crypto_known_devices(client, member_ids, strict = TRUE)
+        # What the homeserver named, before verification dropped any of
+        # it. Counting the survivors instead made a room where Bob's only
+        # device is malformed look exactly like a room with no Bob in it:
+        # nothing left to encrypt to either way, and only one of those is
+        # a reason to go ahead.
+        others_seen <- Filter(function(sd) {
+            !(identical(sd[["user_id"]], client$user_id) &&
+                              identical(sd[["device_id"]], client$device_id))
+        }, attr(found, "seen") %||% list())
         # Skip our own device, and only our own. Device ids are scoped to a
         # user, not globally unique, so comparing device_id alone dropped
         # every other account whose device happened to share the name --
@@ -266,7 +288,7 @@ mx_send_encrypted <- function(client, account, sessions, room_id, content,
             !(identical(d$user_id, client$user_id) &&
                        identical(d$device_id, client$device_id)) &&
             !is.null(d$curve25519) && nzchar(d$curve25519)
-        }, devs)
+        }, found)
         need <- Filter(function(d) is.null(sessions$olm[[d$curve25519]]), devs)
         have <- Filter(function(d) !is.null(sessions$olm[[d$curve25519]]), devs)
         claimed <- mx_crypto_claim_otks(client, need, strict = TRUE)
@@ -284,15 +306,29 @@ mx_send_encrypted <- function(client, account, sessions, room_id, content,
         # Skipping some devices is the policy above. Skipping all of them
         # is not: the room key reaches nobody, the m.room.encrypted event
         # goes out anyway, and the caller is handed an event id for a
-        # message every recipient will fail to decrypt. A room with no
-        # other devices at all is different -- that is a room of one, and
-        # sending to it is fine.
-        if (length(devs) && !length(recipients)) {
-            stop("mx.client: every device in ", room_id, " was skipped (",
-                 length(devs), " found, none usable). Refusing to send an ",
-                 "encrypted event whose room key would reach nobody.",
+        # message every recipient will fail to decrypt.
+        #
+        # Measured against what the homeserver named, not against what
+        # survived verification -- otherwise a room whose one other device
+        # is malformed is indistinguishable from a room that has no other
+        # device, and the second of those is fine to send to. A member who
+        # has no devices at all is fine too: there is genuinely nobody to
+        # share a key with, and the event still belongs in the room for
+        # whatever device that member logs in later.
+        if (length(others_seen) && !length(recipients)) {
+            stop("mx.client: every other device in ", room_id,
+                 " was skipped (", length(others_seen),
+                 " named by the homeserver, none usable). Refusing to send ",
+                 "an encrypted event whose room key would reach nobody.",
                  call. = FALSE)
         }
+    } else if (!length(recipients)) {
+        # An explicit empty list is the same unreadable event, arrived at
+        # by a caller who did their own discovery. Nothing above runs for
+        # them, so say it here rather than let it through.
+        stop("mx.client: recipients is empty. Refusing to send an encrypted ",
+             "event whose room key would reach nobody; pass recipients = ",
+             "NULL with member_ids to have them discovered.", call. = FALSE)
     }
 
     out <- mx_crypto_encrypt_for_devices(account, sessions, room_id,
