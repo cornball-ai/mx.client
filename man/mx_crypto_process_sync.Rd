@@ -3,8 +3,14 @@
 \alias{mx_crypto_process_sync}
 \title{Process a sync response: store room keys, decrypt room events}
 \usage{
-mx_crypto_process_sync(account, sessions, sync_resp, self_curve25519,
-                       self_id = NULL, devices = NULL)
+mx_crypto_process_sync(
+  account,
+  sessions,
+  sync_resp,
+  self_curve25519,
+  self_id = NULL,
+  devices = NULL
+)
 }
 \arguments{
 \item{account}{An mx.crypto account handle.}

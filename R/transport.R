@@ -60,8 +60,17 @@ mx_crypto_publish_keys <- function(client, account, store_dir, n_otks = 50L) {
 #' fails is dropped with a warning naming it, and the remaining devices
 #' are still returned: one bad device must not make a room unusable.
 #'
+#' \code{/keys/query} answers 200 with a \code{failures} map when it could
+#' not reach a server, and returns whatever it did manage. That is not the
+#' same as a user having no devices, so it is never silent: by default it
+#' warns, and with \code{strict = TRUE} it is an error. Encrypting to a
+#' user whose devices could not be listed is how a message ends up
+#' readable by nobody, so the send path asks for strict.
+#'
 #' @param client Matrix client config.
 #' @param user_ids Character vector of Matrix user ids.
+#' @param strict Logical. Treat a \code{failures} map as an error rather
+#'   than a warning.
 #' @return List of verified devices, each \code{list(user_id, device_id,
 #'   curve25519, ed25519)}.
 #' @examples
@@ -69,12 +78,33 @@ mx_crypto_publish_keys <- function(client, account, store_dir, n_otks = 50L) {
 #' mx_crypto_known_devices(client, "@bob:example.org")
 #' }
 #' @export
-mx_crypto_known_devices <- function(client, user_ids) {
+mx_crypto_known_devices <- function(client, user_ids, strict = FALSE) {
     mx_require_crypto()
     s <- mx_client_session(client)
     query <- stats::setNames(rep(list(list()), length(user_ids)), user_ids)
     resp <- mx.api::mx_keys_query(s, device_keys = query)
+    mx_crypto_report_failures(resp$failures, "/keys/query", strict)
     mx_crypto_verify_device_map(resp$device_keys)
+}
+
+# A server we could not reach is not a user with no devices.
+#
+# Both /keys/query and /keys/claim answer 200 with a `failures` map and
+# whatever they did manage beside it. Read only the successful half and an
+# unreachable homeserver looks exactly like an empty one, which on the
+# send path means encrypting to nobody and reporting success.
+mx_crypto_report_failures <- function(failures, what, strict = FALSE) {
+    if (!length(failures)) {
+        return(invisible(FALSE))
+    }
+    msg <- paste0("mx.client: ", what, " could not reach ",
+                  paste(names(failures), collapse = ", "),
+                  "; devices there are unknown, not absent")
+    if (isTRUE(strict)) {
+        stop(msg, call. = FALSE)
+    }
+    warning(msg, call. = FALSE)
+    invisible(TRUE)
 }
 
 # Verify every device in a parsed /keys/query device_keys map.
@@ -118,8 +148,14 @@ mx_crypto_verify_device_map <- function(device_keys_map) {
 #' (that is, from \code{mx_crypto_known_devices()}). A key that fails is
 #' dropped with a warning and its device comes back with no \code{otk}.
 #'
+#' \code{/keys/claim} carries the same \code{failures} map as
+#' \code{/keys/query}, and it is handled the same way: warned about by
+#' default, an error under \code{strict}.
+#'
 #' @param client Matrix client config.
 #' @param devices List of devices from \code{mx_crypto_known_devices()}.
+#' @param strict Logical. Treat a \code{failures} map as an error rather
+#'   than a warning.
 #' @return The devices with an \code{otk} field added where one was
 #'   claimed and verified.
 #' @examples
@@ -127,7 +163,7 @@ mx_crypto_verify_device_map <- function(device_keys_map) {
 #' devs <- mx_crypto_claim_otks(client, mx_crypto_known_devices(client, uid))
 #' }
 #' @export
-mx_crypto_claim_otks <- function(client, devices) {
+mx_crypto_claim_otks <- function(client, devices, strict = FALSE) {
     mx_require_crypto()
     if (!length(devices)) {
         return(devices)
@@ -139,6 +175,7 @@ mx_crypto_claim_otks <- function(client, devices) {
                               stats::setNames(list("signed_curve25519"), d$device_id))
     }
     resp <- mx.api::mx_keys_claim(s, one_time_keys = req)
+    mx_crypto_report_failures(resp$failures, "/keys/claim", strict)
     mx_crypto_verify_claimed_otks(devices, resp$one_time_keys %||% list())
 }
 
@@ -215,15 +252,24 @@ mx_send_encrypted <- function(client, account, sessions, room_id, content,
     sender_curve <- mx.crypto::mxc_account_identity_keys(account)$curve25519
 
     if (is.null(recipients)) {
-        devs <- mx_crypto_known_devices(client, member_ids)
-        # skip our own device; claim OTKs only where no Olm session exists
+        # strict: a server that could not be reached leaves its users'
+        # devices unknown, and an unknown device is not an absent one. Read
+        # the successful half of a partial response and a federation blip
+        # becomes a message nobody can read.
+        devs <- mx_crypto_known_devices(client, member_ids, strict = TRUE)
+        # Skip our own device, and only our own. Device ids are scoped to a
+        # user, not globally unique, so comparing device_id alone dropped
+        # every other account whose device happened to share the name --
+        # two bots both called BOT, and the one recipient vanishes while
+        # the send still reports success.
         devs <- Filter(function(d) {
-            !identical(d$device_id, client$device_id) &&
+            !(identical(d$user_id, client$user_id) &&
+                       identical(d$device_id, client$device_id)) &&
             !is.null(d$curve25519) && nzchar(d$curve25519)
         }, devs)
         need <- Filter(function(d) is.null(sessions$olm[[d$curve25519]]), devs)
         have <- Filter(function(d) !is.null(sessions$olm[[d$curve25519]]), devs)
-        claimed <- mx_crypto_claim_otks(client, need)
+        claimed <- mx_crypto_claim_otks(client, need, strict = TRUE)
         # A device whose one-time key failed verification has no usable otk.
         # Drop it rather than letting encrypt_for_devices abort the send:
         # the remaining devices should still get the message.
@@ -235,6 +281,18 @@ mx_send_encrypted <- function(client, account, sessions, room_id, content,
                     call. = FALSE)
         }
         recipients <- c(usable, have)
+        # Skipping some devices is the policy above. Skipping all of them
+        # is not: the room key reaches nobody, the m.room.encrypted event
+        # goes out anyway, and the caller is handed an event id for a
+        # message every recipient will fail to decrypt. A room with no
+        # other devices at all is different -- that is a room of one, and
+        # sending to it is fine.
+        if (length(devs) && !length(recipients)) {
+            stop("mx.client: every device in ", room_id, " was skipped (",
+                 length(devs), " found, none usable). Refusing to send an ",
+                 "encrypted event whose room key would reach nobody.",
+                 call. = FALSE)
+        }
     }
 
     out <- mx_crypto_encrypt_for_devices(account, sessions, room_id,

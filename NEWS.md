@@ -1,3 +1,32 @@
+# mx.client 0.2.0.1
+
+## Security
+
+* **HIGH**: `mx_send_encrypted()` filtered its own device by `device_id`
+  alone. Matrix device ids are scoped to a user, not globally unique, so
+  every other account whose device happened to share the name was
+  dropped from the recipient list -- two bots both called `BOT`, and the
+  only recipient disappears while the send still returns an event id.
+  The self-filter now compares `(user_id, device_id)`.
+
+* **HIGH**: an encrypted send with no usable recipients posted the
+  `m.room.encrypted` event anyway. Devices are skipped when their keys
+  or one-time keys do not verify, which is deliberate, but skipping all
+  of them means the room key reaches nobody and the caller is handed an
+  event id for a message every recipient will fail to decrypt. Reaching
+  zero now aborts. A room with no other devices at all is unaffected:
+  that is a room of one, and sending to it is fine.
+
+* **HIGH**: `/keys/query` and `/keys/claim` answer 200 with a `failures`
+  map when a server could not be reached, returning whatever they did
+  manage. Both were read as though the successful half were the whole
+  answer, so an unreachable homeserver was indistinguishable from a user
+  with no devices. `mx_crypto_known_devices()` and
+  `mx_crypto_claim_otks()` gain `strict`: they warn by default and error
+  under it, and `mx_send_encrypted()` asks for strict, because
+  encrypting to a user whose devices could not be listed is how a
+  message ends up readable by nobody.
+
 # mx.client 0.2.0
 
 ## Security

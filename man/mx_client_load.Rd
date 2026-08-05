@@ -3,8 +3,12 @@
 \alias{mx_client_load}
 \title{Load a Matrix client config}
 \usage{
-mx_client_load(app = "mx.client", path = NULL,
-               legacy_path = mx_client_legacy_config_path(app), env_var = NULL)
+mx_client_load(
+  app = "mx.client",
+  path = NULL,
+  legacy_path = mx_client_legacy_config_path(app),
+  env_var = NULL
+)
 }
 \arguments{
 \item{app}{Character. Application namespace.}

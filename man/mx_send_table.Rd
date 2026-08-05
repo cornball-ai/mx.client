@@ -3,8 +3,15 @@
 \alias{mx_send_table}
 \title{Send tabular data to a Matrix room}
 \usage{
-mx_send_table(client, x, room = NULL, header = TRUE, title = NULL,
-              room_cache = NULL, dry_run = FALSE)
+mx_send_table(
+  client,
+  x,
+  room = NULL,
+  header = TRUE,
+  title = NULL,
+  room_cache = NULL,
+  dry_run = FALSE
+)
 }
 \arguments{
 \item{client}{Matrix client config.}

@@ -24,7 +24,7 @@
 #' @export
 mx_set_displayname <- function(client, name, save = TRUE) {
     if (!is.character(name) || length(name) != 1L || is.na(name) ||
-            !nzchar(name)) {
+        !nzchar(name)) {
         stop("name must be a single non-empty string", call. = FALSE)
     }
     mx_with_relogin(client, function(cl) {

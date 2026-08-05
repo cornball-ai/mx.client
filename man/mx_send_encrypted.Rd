@@ -3,8 +3,16 @@
 \alias{mx_send_encrypted}
 \title{Send an end-to-end encrypted message to a room}
 \usage{
-mx_send_encrypted(client, account, sessions, room_id, content, store_dir,
-                  recipients = NULL, member_ids = NULL)
+mx_send_encrypted(
+  client,
+  account,
+  sessions,
+  room_id,
+  content,
+  store_dir,
+  recipients = NULL,
+  member_ids = NULL
+)
 }
 \arguments{
 \item{client}{Matrix client config.}

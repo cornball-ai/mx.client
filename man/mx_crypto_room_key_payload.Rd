@@ -3,10 +3,17 @@
 \alias{mx_crypto_room_key_payload}
 \title{Encrypt a Megolm room key to one device as a to-device payload}
 \usage{
-mx_crypto_room_key_payload(olm_session, sender_curve25519,
-                           recipient_curve25519, room_id, megolm_out,
-                           sender_user_id, sender_ed25519, recipient_user_id,
-                           recipient_ed25519)
+mx_crypto_room_key_payload(
+  olm_session,
+  sender_curve25519,
+  recipient_curve25519,
+  room_id,
+  megolm_out,
+  sender_user_id,
+  sender_ed25519,
+  recipient_user_id,
+  recipient_ed25519
+)
 }
 \arguments{
 \item{olm_session}{An outbound Olm session
