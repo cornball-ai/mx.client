@@ -3,8 +3,13 @@
 \alias{mx_crypto_encrypt_event}
 \title{Encrypt event content for a room (Megolm)}
 \usage{
-mx_crypto_encrypt_event(megolm_out, content, room_id, sender_curve25519,
-                        device_id)
+mx_crypto_encrypt_event(
+  megolm_out,
+  content,
+  room_id,
+  sender_curve25519,
+  device_id
+)
 }
 \arguments{
 \item{megolm_out}{An outbound Megolm session.}

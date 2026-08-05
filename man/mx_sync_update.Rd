@@ -3,8 +3,14 @@
 \alias{mx_sync_update}
 \title{Sync once and update the stored cursor}
 \usage{
-mx_sync_update(client, timeout = 0L, filter = NULL, save = TRUE, path = NULL,
-               app = NULL)
+mx_sync_update(
+  client,
+  timeout = 0L,
+  filter = NULL,
+  save = TRUE,
+  path = NULL,
+  app = NULL
+)
 }
 \arguments{
 \item{client}{Matrix client config.}

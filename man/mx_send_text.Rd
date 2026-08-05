@@ -3,8 +3,16 @@
 \alias{mx_send_text}
 \title{Send plain text to a Matrix room}
 \usage{
-mx_send_text(client, text, room = NULL, msgtype = "m.text", room_cache = NULL,
-             dry_run = FALSE, markdown = FALSE, mentions = NULL)
+mx_send_text(
+  client,
+  text,
+  room = NULL,
+  msgtype = "m.text",
+  room_cache = NULL,
+  dry_run = FALSE,
+  markdown = FALSE,
+  mentions = NULL
+)
 }
 \arguments{
 \item{client}{Matrix client config.}

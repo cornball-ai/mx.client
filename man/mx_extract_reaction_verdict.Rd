@@ -3,8 +3,14 @@
 \alias{mx_extract_reaction_verdict}
 \title{Extract a reaction approval verdict from sync events}
 \usage{
-mx_extract_reaction_verdict(sync_resp, room_id, self_id, target_event_id,
-                            approve_keys = NULL, deny_keys = NULL)
+mx_extract_reaction_verdict(
+  sync_resp,
+  room_id,
+  self_id,
+  target_event_id,
+  approve_keys = NULL,
+  deny_keys = NULL
+)
 }
 \arguments{
 \item{sync_resp}{Parsed \code{/sync} response.}

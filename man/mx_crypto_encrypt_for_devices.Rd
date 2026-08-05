@@ -3,9 +3,16 @@
 \alias{mx_crypto_encrypt_for_devices}
 \title{Encrypt an event for an encrypted room's devices}
 \usage{
-mx_crypto_encrypt_for_devices(account, sessions, room_id, content,
-                              sender_curve25519, device_id,
-                              recipients = list(), sender_user_id = NULL)
+mx_crypto_encrypt_for_devices(
+  account,
+  sessions,
+  room_id,
+  content,
+  sender_curve25519,
+  device_id,
+  recipients = list(),
+  sender_user_id = NULL
+)
 }
 \arguments{
 \item{account}{An mx.crypto account handle.}

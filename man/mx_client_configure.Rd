@@ -3,8 +3,16 @@
 \alias{mx_client_configure}
 \title{Configure and save a Matrix client}
 \usage{
-mx_client_configure(server, user, password, room, app = "mx.client",
-                    path = NULL, device_id = NULL, extra = list())
+mx_client_configure(
+  server,
+  user,
+  password,
+  room,
+  app = "mx.client",
+  path = NULL,
+  device_id = NULL,
+  extra = list()
+)
 }
 \arguments{
 \item{server}{Character. Homeserver base URL.}

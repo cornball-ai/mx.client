@@ -3,8 +3,14 @@
 \alias{mx_crypto_handle_to_device}
 \title{Decrypt an inbound Olm to-device payload}
 \usage{
-mx_crypto_handle_to_device(account, my_curve25519, content, self_id = NULL,
-                           self_ed25519 = NULL, devices = NULL)
+mx_crypto_handle_to_device(
+  account,
+  my_curve25519,
+  content,
+  self_id = NULL,
+  self_ed25519 = NULL,
+  devices = NULL
+)
 }
 \arguments{
 \item{account}{An mx.crypto account handle.}

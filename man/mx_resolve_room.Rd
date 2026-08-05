@@ -3,8 +3,14 @@
 \alias{mx_resolve_room}
 \title{Resolve a room id, name, or default room}
 \usage{
-mx_resolve_room(client, room = NULL, room_cache = NULL, fallback = TRUE,
-                details = FALSE, quiet = FALSE)
+mx_resolve_room(
+  client,
+  room = NULL,
+  room_cache = NULL,
+  fallback = TRUE,
+  details = FALSE,
+  quiet = FALSE
+)
 }
 \arguments{
 \item{client}{Matrix client config.}

@@ -3,9 +3,17 @@
 \alias{mx_send_media}
 \title{Send a media file to a Matrix room}
 \usage{
-mx_send_media(client, path, room = NULL, body = basename(path), msgtype = NULL,
-              content_type = NULL, info = list(), room_cache = NULL,
-              dry_run = FALSE)
+mx_send_media(
+  client,
+  path,
+  room = NULL,
+  body = basename(path),
+  msgtype = NULL,
+  content_type = NULL,
+  info = list(),
+  room_cache = NULL,
+  dry_run = FALSE
+)
 }
 \arguments{
 \item{client}{Matrix client config.}
