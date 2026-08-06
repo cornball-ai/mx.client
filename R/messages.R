@@ -164,6 +164,57 @@ mx_extract_invites <- function(sync_resp) {
     names(invited)
 }
 
+#' Extract pending invites with the member who sent them
+#'
+#' The fuller form of \code{\link{mx_extract_invites}}, which reports
+#' only room ids. An invite's sender is the whole of whether it should be
+#' accepted -- auto-joining anyone's invite hands a stranger a session
+#' with whatever the client can do -- and a caller that wants to decide
+#' had to walk \code{invite_state} itself to find out.
+#'
+#' The sender comes from the stripped state the homeserver sends
+#' alongside an invite: the \code{m.room.member} event whose
+#' \code{state_key} is \code{self_id} and whose membership is
+#' \code{"invite"}. That is not always present, so \code{inviter} is NA
+#' when it is missing rather than guessed at, and a caller gating on it
+#' can tell "nobody I trust" from "I could not tell".
+#'
+#' Stripped state carries no reliable \code{origin_server_ts}, so there
+#' is no timestamp here. An invite is a standing state, not an event at a
+#' moment.
+#'
+#' @param sync_resp Parsed \code{/sync} response.
+#' @param self_id Current user's Matrix id, whose membership event names
+#'   the inviter. NULL reports every invite with \code{inviter} NA.
+#' @return List of records, each \code{list(room_id, inviter)}.
+#' @examples
+#' sync_resp <- list(rooms = list(invite = list(`!inv:example.org` = list(
+#'     invite_state = list(events = list(list(type = "m.room.member",
+#'         state_key = "@bot:example.org", sender = "@ann:example.org",
+#'         content = list(membership = "invite"))))))))
+#' mx_extract_invite_records(sync_resp, self_id = "@bot:example.org")
+#' @export
+mx_extract_invite_records <- function(sync_resp, self_id = NULL) {
+    invited <- sync_resp$rooms$invite
+    if (!length(invited)) {
+        return(list())
+    }
+    lapply(names(invited), function(rid) {
+        who <- NA_character_
+        if (!is.null(self_id)) {
+            for (ev in invited[[rid]]$invite_state$events %||% list()) {
+                if (isTRUE(ev$type == "m.room.member") &&
+                    isTRUE(ev$state_key == self_id) &&
+                    isTRUE(ev$content$membership == "invite")) {
+                    who <- ev$sender %||% NA_character_
+                    break
+                }
+            }
+        }
+        list(room_id = rid, inviter = who)
+    })
+}
+
 #' Accept pending Matrix room invites
 #'
 #' @param client Matrix client config.
