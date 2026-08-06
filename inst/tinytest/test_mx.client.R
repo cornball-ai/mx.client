@@ -271,3 +271,62 @@ expect_true(grepl("token:\\s+<unset>", out_empty))
 capture.output(vis <- withVisible(print(secret_cfg)))
 expect_false(vis$visible)
 expect_identical(vis$value, secret_cfg)
+
+# --- Invite records carry who sent them ---
+# mx_extract_invites() reports only room ids, and the sender is the whole
+# of whether an invite should be accepted -- so a caller that wants to
+# decide had to walk invite_state itself.
+
+inv_member <- function(sender, self = "@bot:ex", membership = "invite") {
+    list(type = "m.room.member", state_key = self, sender = sender,
+         content = list(membership = membership))
+}
+inv_sync <- list(rooms = list(invite = list(
+    `!a:ex` = list(invite_state = list(events = list(
+        list(type = "m.room.name", content = list(name = "Lab")),
+        inv_member("@ann:ex")))),
+    `!b:ex` = list(invite_state = list(events = list(inv_member("@bob:ex")))),
+    # No membership event for us: the sender cannot be determined.
+    `!c:ex` = list(invite_state = list(events = list(
+        list(type = "m.room.name", content = list(name = "Mystery"))))),
+    # No invite_state at all.
+    `!d:ex` = list()
+)))
+
+recs <- mx.client::mx_extract_invite_records(inv_sync, self_id = "@bot:ex")
+expect_equal(length(recs), 4L)
+expect_equal(vapply(recs, function(r) r$room_id, ""),
+             c("!a:ex", "!b:ex", "!c:ex", "!d:ex"))
+expect_equal(recs[[1]]$inviter, "@ann:ex")
+expect_equal(recs[[2]]$inviter, "@bob:ex")
+# NA, not NULL and not a guess: a caller gating on the sender can tell
+# "nobody I trust" from "I could not tell", and both refuse.
+expect_true(is.na(recs[[3]]$inviter))
+expect_true(is.na(recs[[4]]$inviter))
+
+# A membership event for someone else is not our invitation.
+other <- list(rooms = list(invite = list(`!a:ex` = list(invite_state = list(
+    events = list(inv_member("@ann:ex", self = "@someone:ex")))))))
+expect_true(is.na(mx.client::mx_extract_invite_records(
+    other, self_id = "@bot:ex")[[1]]$inviter))
+# Nor is a join or a leave.
+for (m in c("join", "leave", "ban")) {
+    s <- list(rooms = list(invite = list(`!a:ex` = list(invite_state = list(
+        events = list(inv_member("@ann:ex", membership = m)))))))
+    expect_true(is.na(mx.client::mx_extract_invite_records(
+        s, self_id = "@bot:ex")[[1]]$inviter))
+}
+
+# Without a self_id there is no membership event to match, so every
+# invite reports NA rather than picking an arbitrary sender.
+expect_true(all(vapply(mx.client::mx_extract_invite_records(inv_sync),
+                       function(r) is.na(r$inviter), logical(1))))
+
+# No invites is an empty list, not an error.
+expect_equal(length(mx.client::mx_extract_invite_records(list())), 0L)
+expect_equal(length(mx.client::mx_extract_invite_records(
+    list(rooms = list(invite = list())), self_id = "@bot:ex")), 0L)
+
+# The room ids agree with the older, simpler extractor.
+expect_equal(vapply(recs, function(r) r$room_id, ""),
+             mx.client::mx_extract_invites(inv_sync))

@@ -1,3 +1,22 @@
+# mx.client 0.2.0.4
+
+## New
+
+* `mx_extract_invite_records()` reports pending invites with the member
+  who sent each one, as `list(room_id, inviter)`. `mx_extract_invites()`
+  gives only room ids, and an invite's sender is the whole of whether it
+  should be accepted -- auto-joining anyone's invite hands a stranger a
+  session with whatever the client can do -- so a caller that wanted to
+  decide had to walk `invite_state` itself.
+
+  `inviter` is NA when the stripped state carries no `m.room.member`
+  event for `self_id`, rather than being guessed at, so a caller gating
+  on it can tell "nobody I trust" from "I could not tell". Both refuse;
+  they are different reasons.
+
+  No timestamp: stripped state has no reliable `origin_server_ts`, and an
+  invite is a standing state rather than an event at a moment.
+
 # mx.client 0.2.0.3
 
 ## New
