@@ -148,6 +148,94 @@ mx_extract_text_events <- function(sync_resp, self_id, msgtypes = "m.text") {
     out
 }
 
+#' Extract media message events from a sync response
+#'
+#' Walks joined-room timeline events and returns normalized media
+#' records: images, files, audio, and video sent as
+#' \code{m.room.message} events. Self events are retained and tagged
+#' with \code{is_self}, as in \code{\link{mx_extract_text_events}}.
+#'
+#' Cleartext media carries its content address in \code{content$url};
+#' end-to-end encrypted media carries a \code{content$file} object
+#' (address, key material, sha256) instead. \code{url} is filled from
+#' whichever is present, so a consumer that only wants to know where
+#' the bytes live reads one field. \code{file} rides verbatim, the
+#' \code{relates_to} treatment: decrypting is the caller's business,
+#' and an extractor inventing a partial view of key material would
+#' help no one.
+#'
+#' \code{m.sticker} is its own event type, not an
+#' \code{m.room.message} msgtype, and is not reported here.
+#'
+#' @param sync_resp Parsed \code{/sync} response.
+#' @param self_id Current user's Matrix id.
+#' @param msgtypes Character vector of media message types to include.
+#' @return List of normalized records, each carrying \code{room_id},
+#'   \code{event_id}, \code{sender}, \code{is_self}, \code{body} (the
+#'   filename, or the caption when \code{filename} is set),
+#'   \code{filename} (or NULL), \code{msgtype}, \code{ts} (or NULL),
+#'   \code{url} (the mxc address, from \code{content$url} or
+#'   \code{content$file$url}), \code{mime} (or NULL), \code{size} (or
+#'   NULL), \code{sha256} (from the encrypted file object; cleartext
+#'   media carries no hash, so NULL there), \code{encrypted},
+#'   \code{file} (the \code{content$file} object verbatim, or NULL),
+#'   \code{mentions}, and \code{relates_to}.
+#'
+#'   An event with no address in either place is skipped: there is
+#'   nothing a consumer could ever fetch, so reporting it would hand
+#'   out a record whose one job is impossible.
+#' @examples
+#' sync_resp <- list(rooms = list(join = list("!room:example.org" = list(
+#'     timeline = list(events = list(list(type = "m.room.message",
+#'         event_id = "$1", sender = "@alice:example.org",
+#'         content = list(msgtype = "m.image", body = "plot.png",
+#'             url = "mxc://example.org/abc",
+#'             info = list(mimetype = "image/png", size = 1024)))))))))
+#' mx_extract_media_events(sync_resp, self_id = "@bot:example.org")
+#' @export
+mx_extract_media_events <- function(sync_resp, self_id,
+                                    msgtypes = c("m.image", "m.file",
+                                                 "m.audio", "m.video")) {
+    joined <- sync_resp$rooms$join
+    if (!length(joined)) {
+        return(list())
+    }
+
+    out <- list()
+    for (rid in names(joined)) {
+        events <- joined[[rid]]$timeline$events
+        if (!length(events)) {
+            next
+        }
+        for (ev in events) {
+            if (!isTRUE(ev$type == "m.room.message") ||
+                !isTRUE(ev$content$msgtype %in% msgtypes)) {
+                next
+            }
+            url <- ev$content$url %||% ev$content$file$url
+            if (is.null(url)) {
+                next
+            }
+            out[[length(out) + 1L]] <- list(room_id = rid,
+                event_id = ev$event_id, sender = ev$sender,
+                is_self = isTRUE(ev$sender == self_id),
+                body = ev$content$body,
+                filename = ev$content$filename,
+                msgtype = ev$content$msgtype,
+                ts = ev$origin_server_ts,
+                url = url,
+                mime = ev$content$info$mimetype,
+                size = ev$content$info$size,
+                sha256 = ev$content$file$hashes$sha256,
+                encrypted = !is.null(ev$content$file),
+                file = ev$content$file,
+                mentions = ev$content$`m.mentions`$user_ids,
+                relates_to = ev$content$`m.relates_to`)
+        }
+    }
+    out
+}
+
 #' Extract pending invite room ids from a sync response
 #'
 #' @param sync_resp Parsed \code{/sync} response.

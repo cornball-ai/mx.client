@@ -93,6 +93,72 @@ expect_equal(invites, c("!a:ex", "!b:ex"))
 expect_equal(mx.client::mx_extract_invites(list(rooms = list(join = list()))),
              character())
 
+# --- Media extraction ---
+
+# Cleartext media: address in content$url, description in info. Text
+# events belong to mx_extract_text_events, and an m.image with no
+# address in either place is skipped: nothing a consumer could fetch.
+media_sync <- list(rooms = list(join = list("!r:ex" = list(timeline = list(
+    events = list(
+        list(type = "m.room.message", sender = "@alice:ex", event_id = "$1",
+             origin_server_ts = 1700000000000,
+             content = list(msgtype = "m.image", body = "plot.png",
+                            url = "mxc://ex/abc",
+                            info = list(mimetype = "image/png",
+                                        size = 1024))),
+        list(type = "m.room.message", sender = "@bot:ex", event_id = "$2",
+             content = list(msgtype = "m.file", body = "notes.pdf",
+                            url = "mxc://ex/def")),
+        list(type = "m.room.message", sender = "@alice:ex", event_id = "$3",
+             content = list(msgtype = "m.text", body = "not media")),
+        list(type = "m.room.message", sender = "@alice:ex", event_id = "$4",
+             content = list(msgtype = "m.image", body = "no-address.png"))
+    )
+)))))
+media <- mx.client::mx_extract_media_events(media_sync, "@bot:ex")
+expect_equal(length(media), 2L)
+expect_equal(media[[1]]$url, "mxc://ex/abc")
+expect_equal(media[[1]]$mime, "image/png")
+expect_equal(media[[1]]$size, 1024)
+expect_equal(media[[1]]$ts, 1700000000000)
+expect_false(media[[1]]$is_self)
+expect_false(media[[1]]$encrypted)
+expect_null(media[[1]]$sha256)
+expect_true(media[[2]]$is_self)
+expect_null(media[[2]]$mime)
+
+# Encrypted media: the address moves into content$file, which also
+# carries the sha256 and the key material. url fills from it, the hash
+# surfaces, and the file object rides verbatim for whoever holds keys.
+enc_sync <- list(rooms = list(join = list("!r:ex" = list(timeline = list(
+    events = list(
+        list(type = "m.room.message", sender = "@alice:ex", event_id = "$5",
+             content = list(msgtype = "m.video", body = "clip.mp4",
+                            filename = "clip.mp4",
+                            info = list(mimetype = "video/mp4",
+                                        size = 2048),
+                            file = list(url = "mxc://ex/enc",
+                                        key = list(k = "secret"),
+                                        iv = "iv0",
+                                        hashes = list(sha256 = "deadbeef"),
+                                        v = "v2")))
+    )
+)))))
+enc <- mx.client::mx_extract_media_events(enc_sync, "@bot:ex")
+expect_equal(length(enc), 1L)
+expect_equal(enc[[1]]$url, "mxc://ex/enc")
+expect_equal(enc[[1]]$sha256, "deadbeef")
+expect_true(enc[[1]]$encrypted)
+expect_equal(enc[[1]]$file$key$k, "secret")
+expect_equal(enc[[1]]$filename, "clip.mp4")
+expect_equal(enc[[1]]$msgtype, "m.video")
+
+# Malformed and empty syncs extract to nothing, not errors
+expect_equal(length(mx.client::mx_extract_media_events(list(), "@bot:ex")),
+             0L)
+expect_equal(length(mx.client::mx_extract_media_events(
+    list(rooms = list(join = list())), "@bot:ex")), 0L)
+
 # --- Reaction verdict extraction ---
 
 reaction_sync <- list(rooms = list(join = list(
