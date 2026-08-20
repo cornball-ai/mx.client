@@ -11,7 +11,8 @@ mx_send_text(
   room_cache = NULL,
   dry_run = FALSE,
   markdown = FALSE,
-  mentions = NULL
+  mentions = NULL,
+  thread = NULL
 )
 }
 \arguments{
@@ -36,6 +37,17 @@ from a conservative markdown subset.}
 \code{@localpart} in the body becomes a \code{matrix.to} pill in the
 HTML. Implies an HTML formatted body even when \code{markdown} is
 FALSE -- pills only render from HTML.}
+
+\item{thread}{Event id of a thread root, or NULL for an ordinary
+message. The event is sent as a threaded reply
+(\code{m.relates_to} with \code{rel_type} \code{"m.thread"}).
+
+It also carries the reply fallback the spec asks for --
+\code{is_falling_back} with an \code{m.in_reply_to} pointing at the
+root -- so a client that does not implement threads renders the
+message as a reply to the root rather than as a loose message in
+the room. Without it those clients show a threaded conversation
+as unattached chatter.}
 }
 \value{
 Event id, or NULL on dry-run.

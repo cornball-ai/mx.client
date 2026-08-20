@@ -213,6 +213,57 @@ expect_equal(rel[[3]]$relates_to$`m.in_reply_to`$event_id, "$orig")
 expect_equal(rel[[2]]$body, "in a thread")
 expect_equal(rel[[2]]$event_id, "$thread")
 
+# --- Threaded sends ---
+# The outbound half of the relation the extraction tests above read.
+# mx_send_text() hands mx.api::mx_send() an `extra` block, so what is
+# asserted here is the content the homeserver would receive.
+local({
+    seen <- NULL
+    orig_send <- mx.api::mx_send
+    orig_sess <- mx.client::mx_client_session
+    assignInNamespace("mx_send", function(session, room_id, body,
+                                          msgtype = "m.text",
+                                          extra = NULL) {
+        seen <<- list(room_id = room_id, body = body, msgtype = msgtype,
+                      extra = extra)
+        "$sent"
+    }, ns = "mx.api")
+    assignInNamespace("mx_client_session", function(client, ...) list(),
+                      ns = "mx.client")
+    on.exit({
+        assignInNamespace("mx_send", orig_send, ns = "mx.api")
+        assignInNamespace("mx_client_session", orig_sess, ns = "mx.client")
+    }, add = TRUE)
+    client <- list(room_id = "!r:ex")
+
+    # No thread: no relation at all, rather than an empty one a
+    # homeserver would have to interpret.
+    mx.client::mx_send_text(client, "plain")
+    expect_null(seen$extra$`m.relates_to`)
+
+    expect_equal(mx.client::mx_send_text(client, "in a thread",
+                                         thread = "$root"), "$sent")
+    rel <- seen$extra$`m.relates_to`
+    expect_equal(rel$rel_type, "m.thread")
+    expect_equal(rel$event_id, "$root")
+    # The reply fallback, so a thread-unaware client renders this as a
+    # reply to the root instead of as loose chatter in the room.
+    expect_true(rel$is_falling_back)
+    expect_equal(rel$`m.in_reply_to`$event_id, "$root")
+
+    # A thread rides alongside markdown and mentions rather than
+    # replacing them: all three land in one content block.
+    mx.client::mx_send_text(client, "**bold**", markdown = TRUE,
+                            mentions = "@troy:ex", thread = "$root")
+    expect_equal(seen$extra$format, "org.matrix.custom.html")
+    expect_equal(seen$extra$`m.mentions`$user_ids[[1]], "@troy:ex")
+    expect_equal(seen$extra$`m.relates_to`$rel_type, "m.thread")
+
+    # An empty thread id is "no thread", not a relation pointing nowhere.
+    mx.client::mx_send_text(client, "x", thread = "")
+    expect_null(seen$extra$`m.relates_to`)
+})
+
 # --- General reaction extraction ---
 # mx_extract_reaction_verdict() answers one approve/deny question about
 # one event, with the key semantics baked in. This reports every reaction
