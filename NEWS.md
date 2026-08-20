@@ -1,3 +1,16 @@
+# mx.client 0.2.0.7
+
+## Fixes
+
+- `mx_extract_media_events()` threw "$ operator is invalid for atomic
+  vectors" on a cleartext image whose content carried a `filename` --
+  which is what Element sends for an ordinary photo, and what any
+  client sends when `body` is a caption. `$` partial-matches on a list,
+  so with no exact `file` key `content$file` resolved to the filename
+  string and `content$file$hashes` was `$` on a character vector. It
+  would also have reported that picture as `encrypted`. Every content
+  field is read with `[[` now.
+
 # mx.client 0.2.0.6
 
 ## New

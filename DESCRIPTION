@@ -1,7 +1,7 @@
 Package: mx.client
 Type: Package
 Title: Stateful Matrix Client Helpers
-Version: 0.2.0.6
+Version: 0.2.0.7
 Date: 2026-08-20
 Authors@R: c(
     person("Troy", "Hernandez", role = c("aut", "cre"),
