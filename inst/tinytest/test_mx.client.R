@@ -127,6 +127,70 @@ expect_null(media[[1]]$sha256)
 expect_true(media[[2]]$is_self)
 expect_null(media[[2]]$mime)
 
+# Cleartext media that carries a filename. This is what a real client
+# sends -- Element puts `filename` on an ordinary photo, and any client
+# does when `body` is a caption rather than the file name -- and it is
+# the case every fixture above is missing.
+#
+# It threw on the first live image this function ever saw. `$` on a
+# list partial-matches, so with no exact `file` key `content$file`
+# resolved to the filename string, and `content$file$hashes` is `$` on
+# a character vector: "$ operator is invalid for atomic vectors". The
+# encrypted fixture below carries a filename too, but it also carries a
+# real `file`, so `$` matched exactly there and the ambiguity never
+# arose. Nothing was wrong with the code that only an exactly-matching
+# fixture ever ran.
+local({
+    named <- list(rooms = list(join = list("!r:ex" = list(timeline = list(
+        events = list(
+            list(type = "m.room.message", sender = "@alice:ex",
+                 event_id = "$6", origin_server_ts = 1700000001000,
+                 content = list(msgtype = "m.image",
+                                body = "look at this",
+                                filename = "IMG_0942.png",
+                                url = "mxc://ex/named",
+                                info = list(mimetype = "image/png",
+                                            size = 4096)))
+        )
+    )))))
+    got <- mx.client::mx_extract_media_events(named, "@bot:ex")
+    expect_equal(length(got), 1L)
+    expect_equal(got[[1]]$url, "mxc://ex/named")
+    expect_equal(got[[1]]$filename, "IMG_0942.png")
+    # The caption, not the file name: with `filename` set, `body` is
+    # what the sender typed.
+    expect_equal(got[[1]]$body, "look at this")
+    expect_equal(got[[1]]$mime, "image/png")
+    expect_equal(got[[1]]$size, 4096)
+    # The two the partial match got wrong, by value. A cleartext
+    # picture reported as encrypted is one a consumer refuses to fetch.
+    expect_false(got[[1]]$encrypted)
+    expect_null(got[[1]]$file)
+    expect_null(got[[1]]$sha256)
+})
+
+# The same ambiguity one level out: `info` absent while `information`-
+# like keys are not, and a content that is not a list at all. Neither
+# can be reached from a well-formed homeserver, and both are one
+# malformed event away from taking a whole poll's media with them.
+local({
+    odd <- list(rooms = list(join = list("!r:ex" = list(timeline = list(
+        events = list(
+            list(type = "m.room.message", sender = "@alice:ex",
+                 event_id = "$7",
+                 content = list(msgtype = "m.image", body = "a.png",
+                                url = "mxc://ex/noinfo")),
+            list(type = "m.room.message", sender = "@alice:ex",
+                 event_id = "$8", content = "not an object")
+        )
+    )))))
+    got <- mx.client::mx_extract_media_events(odd, "@bot:ex")
+    expect_equal(length(got), 1L)
+    expect_equal(got[[1]]$event_id, "$7")
+    expect_null(got[[1]]$mime)
+    expect_null(got[[1]]$size)
+})
+
 # Encrypted media: the address moves into content$file, which also
 # carries the sha256 and the key material. url fills from it, the hash
 # surfaces, and the file object rides verbatim for whoever holds keys.
