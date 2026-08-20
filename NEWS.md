@@ -1,3 +1,14 @@
+# mx.client 0.2.0.5
+
+## New
+
+* `mx_send_text(thread =)` sends into a Matrix thread. Given a root
+  event id it attaches `m.relates_to` with `rel_type` `m.thread`, plus
+  the reply fallback (`is_falling_back` and an `m.in_reply_to` pointing
+  at the root) so thread-unaware clients render the message as a reply
+  instead of as loose chatter. `mx_extract_text_events()` has carried
+  the inbound `relates_to` since 0.2.0.4, so the round trip now closes.
+
 # mx.client 0.2.0.4
 
 ## New
