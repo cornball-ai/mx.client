@@ -16,6 +16,16 @@
 #'   \code{@localpart} in the body becomes a \code{matrix.to} pill in the
 #'   HTML. Implies an HTML formatted body even when \code{markdown} is
 #'   FALSE -- pills only render from HTML.
+#' @param thread Event id of a thread root, or NULL for an ordinary
+#'   message. The event is sent as a threaded reply
+#'   (\code{m.relates_to} with \code{rel_type} \code{"m.thread"}).
+#'
+#'   It also carries the reply fallback the spec asks for --
+#'   \code{is_falling_back} with an \code{m.in_reply_to} pointing at the
+#'   root -- so a client that does not implement threads renders the
+#'   message as a reply to the root rather than as a loose message in
+#'   the room. Without it those clients show a threaded conversation
+#'   as unattached chatter.
 #' @return Event id, or NULL on dry-run.
 #' @examples
 #' client <- list(room_id = "!default:example.org")
@@ -29,7 +39,8 @@
 #' @export
 mx_send_text <- function(client, text, room = NULL, msgtype = "m.text",
                          room_cache = NULL, dry_run = FALSE,
-                         markdown = FALSE, mentions = NULL) {
+                         markdown = FALSE, mentions = NULL,
+                         thread = NULL) {
     rid <- mx_resolve_room(client, room, room_cache = room_cache)
     if (isTRUE(dry_run)) {
         message("=== mx_send_text (dry-run) [", room %||% "default",
@@ -47,6 +58,16 @@ mx_send_text <- function(client, text, room = NULL, msgtype = "m.text",
     if (length(mentions)) {
         extra <- c(extra,
                    list("m.mentions" = list(user_ids = as.list(mentions))))
+    }
+    if (!is.null(thread) && length(thread) && nzchar(thread[[1L]])) {
+        extra <- c(extra, list("m.relates_to" = list(
+            rel_type = "m.thread",
+            event_id = as.character(thread)[[1L]],
+            # The reply fallback: thread-unaware clients read
+            # m.in_reply_to and render this as a reply to the root.
+            is_falling_back = TRUE,
+            "m.in_reply_to" = list(
+                event_id = as.character(thread)[[1L]]))))
     }
     mx.api::mx_send(mx_client_session(client), rid, text, msgtype = msgtype,
                     extra = extra)
