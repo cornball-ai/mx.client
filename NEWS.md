@@ -1,3 +1,15 @@
+# mx.client 0.2.0.6
+
+## New
+
+* `mx_extract_media_events()` returns the media messages
+  `mx_extract_text_events()` filters out: images, files, audio, and
+  video. Each record carries where the bytes live (`url`, filled from
+  the cleartext `content$url` or an encrypted `content$file$url`),
+  `mime`, `size`, `sha256`, and the `file` object verbatim, so a
+  consumer can tell an encrypted attachment from a cleartext one and
+  fetch either.
+
 # mx.client 0.2.0.5
 
 ## New
