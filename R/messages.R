@@ -39,8 +39,7 @@
 #' @export
 mx_send_text <- function(client, text, room = NULL, msgtype = "m.text",
                          room_cache = NULL, dry_run = FALSE,
-                         markdown = FALSE, mentions = NULL,
-                         thread = NULL) {
+                         markdown = FALSE, mentions = NULL, thread = NULL) {
     rid <- mx_resolve_room(client, room, room_cache = room_cache)
     if (isTRUE(dry_run)) {
         message("=== mx_send_text (dry-run) [", room %||% "default",
@@ -61,13 +60,13 @@ mx_send_text <- function(client, text, room = NULL, msgtype = "m.text",
     }
     if (!is.null(thread) && length(thread) && nzchar(thread[[1L]])) {
         extra <- c(extra, list("m.relates_to" = list(
-            rel_type = "m.thread",
-            event_id = as.character(thread)[[1L]],
-            # The reply fallback: thread-unaware clients read
-            # m.in_reply_to and render this as a reply to the root.
-            is_falling_back = TRUE,
-            "m.in_reply_to" = list(
-                event_id = as.character(thread)[[1L]]))))
+                    rel_type = "m.thread",
+                    event_id = as.character(thread)[[1L]],
+                    # The reply fallback: thread-unaware clients read
+                    # m.in_reply_to and render this as a reply to the root.
+                    is_falling_back = TRUE,
+                    "m.in_reply_to" = list(
+                        event_id = as.character(thread)[[1L]]))))
     }
     mx.api::mx_send(mx_client_session(client), rid, text, msgtype = msgtype,
                     extra = extra)
