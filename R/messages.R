@@ -214,8 +214,7 @@ mx_extract_text_events <- function(sync_resp, self_id, msgtypes = "m.text") {
 #' mx_extract_media_events(sync_resp, self_id = "@bot:example.org")
 #' @export
 mx_extract_media_events <- function(sync_resp, self_id,
-                                    msgtypes = c("m.image", "m.file",
-                                                 "m.audio", "m.video")) {
+                                    msgtypes = c("m.image", "m.file", "m.audio", "m.video")) {
     joined <- sync_resp$rooms$join
     if (!length(joined)) {
         return(list())
@@ -228,29 +227,67 @@ mx_extract_media_events <- function(sync_resp, self_id,
             next
         }
         for (ev in events) {
-            if (!isTRUE(ev$type == "m.room.message") ||
-                !isTRUE(ev$content$msgtype %in% msgtypes)) {
+            # Every content read below is [[ ]], not $, and that is the
+            # whole of this function's history. `$` on a list partial-
+            # matches: an image whose content carries `filename` -- which
+            # is what a client sends when the body is a caption, and what
+            # Element sends for an ordinary photo -- makes
+            # `content$file` resolve to that filename string. Then
+            # `content$file$hashes` is `$` on a character vector, which
+            # is an error, and `encrypted` is TRUE for a cleartext
+            # picture. The first live image this saw threw exactly that.
+            #
+            # The fixtures did not catch it because none of them carried
+            # a `filename`, which is the field that creates the
+            # ambiguity. There is one below now.
+            content <- ev[["content"]]
+            if (!is.list(content) ||
+                !isTRUE(ev[["type"]] == "m.room.message") ||
+                !isTRUE(content[["msgtype"]] %in% msgtypes)) {
                 next
             }
-            url <- ev$content$url %||% ev$content$file$url
+            file <- content[["file"]]
+            url <- content[["url"]] %||%
+            if (is.list(file)) {
+                file[["url"]]
+            } else {
+                NULL
+            }
             if (is.null(url)) {
                 next
             }
+            info <- content[["info"]]
+            if (!is.list(info)) {
+                info <- list()
+            }
+            if (is.list(file)) {
+                hashes <- file[["hashes"]]
+            } else {
+                hashes <- NULL
+            }
+            mentions <- content[["m.mentions"]]
             out[[length(out) + 1L]] <- list(room_id = rid,
-                event_id = ev$event_id, sender = ev$sender,
-                is_self = isTRUE(ev$sender == self_id),
-                body = ev$content$body,
-                filename = ev$content$filename,
-                msgtype = ev$content$msgtype,
-                ts = ev$origin_server_ts,
+                event_id = ev[["event_id"]], sender = ev[["sender"]],
+                is_self = isTRUE(ev[["sender"]] == self_id),
+                body = content[["body"]],
+                filename = content[["filename"]],
+                msgtype = content[["msgtype"]],
+                ts = ev[["origin_server_ts"]],
                 url = url,
-                mime = ev$content$info$mimetype,
-                size = ev$content$info$size,
-                sha256 = ev$content$file$hashes$sha256,
-                encrypted = !is.null(ev$content$file),
-                file = ev$content$file,
-                mentions = ev$content$`m.mentions`$user_ids,
-                relates_to = ev$content$`m.relates_to`)
+                mime = info[["mimetype"]],
+                size = info[["size"]],
+                sha256 = if (is.list(hashes)) hashes[["sha256"]] else NULL,
+                # is.list, not !is.null: the `file` object is what makes
+                # a media event encrypted, and a stray string in that
+                # slot is not one.
+                encrypted = is.list(file),
+                file = if (is.list(file)) file else NULL,
+                mentions = if (is.list(mentions)) {
+                    mentions[["user_ids"]]
+                } else {
+                    NULL
+                },
+                relates_to = content[["m.relates_to"]])
         }
     }
     out
