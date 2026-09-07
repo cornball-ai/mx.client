@@ -134,9 +134,11 @@ mx.client::mx_with_relogin(client, function(cl) {
 Olm/Megolm send/receive orchestrated over `mx.crypto`, aimed at bots and
 controlled deployments. `mx.crypto` is a Suggests and is only touched from
 the E2EE entry points, so plaintext clients install and run without a Rust
-toolchain. Security model is trust-on-first-use (no cross-signing trust store
-yet, no key-request flow). Check a room's state with `mx_room_encrypted()`
-before choosing the encrypted or plaintext path.
+toolchain. Cross-signing bootstrap is fail-closed, and missing Megolm sessions
+produce durable key requests that accept forwarded keys only from the same
+user's cross-signed devices. Check a room's state with `mx_room_encrypted()`
+before choosing the encrypted or plaintext path. This does not include SAS
+verification or cross-user history recovery.
 
 The full flow (store, account, key publish, `mx_send_encrypted()`,
 `mx_crypto_process_sync()`) and its current limitations are in

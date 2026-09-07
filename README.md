@@ -95,14 +95,30 @@ sessions <- res$sessions
 my_curve <- mx.crypto::mxc_account_identity_keys(acct)$curve25519
 sync <- mx_sync_update(client)$sync
 out <- mx_crypto_process_sync(acct, sessions, sync,
-                              my_curve, self_id = client$user_id)
+                              my_curve, self_id = client$user_id,
+                              self_device_id = client$device_id)
+# Save ratchet state before network I/O. Mark only requests that were sent.
+sessions <- out$sessions
+mx_crypto_sessions_save(sessions, store)
+sent <- list()
+for (request in out$key_requests) {
+    ok <- tryCatch({
+        mx_crypto_send_key_requests(client, list(request)); TRUE
+    }, error = function(e) FALSE)
+    if (ok) sent[[length(sent) + 1L]] <- request
+}
+sessions <- mx_crypto_mark_key_requests_sent(sessions, sent)
+mx_crypto_sessions_save(sessions, store)
+for (cancel in out$key_request_cancellations) {
+    try(mx_crypto_send_key_requests(client, list(cancel)), silent = TRUE)
+}
 out$events   # same shape as mx_extract_text_events()
 ```
 
-Security model, in brief: device keys are trusted on first use (no
-cross-signing trust store yet), and there is no key-request or
-forwarded-key flow. See `vignette("e2ee", package = "mx.client")` for
-the full flow, what happens on the wire, and the current limitations.
+Security model, in brief: self-signed device keys are checked before use;
+cross-signing bootstrap verifies the master -> self-signing -> device chain;
+and missing-session requests accept forwarded keys only from this user's
+cross-signed devices. See `vignette("e2ee", package = "mx.client")`.
 
 ## The package family
 
