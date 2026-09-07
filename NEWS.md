@@ -1,5 +1,12 @@
 # mx.client 0.2.0.8
 
+## Documentation
+
+* Move the bundled skill to `inst/skills/matrix-messaging/`, installed at
+  `system.file("skills", "matrix-messaging", package = "mx.client")`.
+  The instruction body is unchanged; direct links to the old nested
+  `skills/mx.client/matrix-messaging` path need updating.
+
 ## New
 
 * Missing Megolm sessions now create persistent `m.room_key_request`
