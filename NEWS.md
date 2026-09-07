@@ -1,3 +1,39 @@
+# mx.client 0.2.0.8
+
+## New
+
+* Missing Megolm sessions now create persistent `m.room_key_request`
+  messages, deduplicate repeated requests, accept requested
+  `m.forwarded_room_key` only from this user's cross-signed devices, and
+  emit request cancellations after recovery.
+
+* `mx_crypto_cross_signing_bootstrap()` creates and durably stores Matrix
+  master, self-signing, and user-signing keys; publishes them through UIA;
+  signs the master with the current device; and signs that device with the
+  self-signing key. Existing server identities are never reset implicitly.
+* `mx_crypto_known_devices()` now reports `cross_signed` and `master_key`
+  after verifying the server-provided master -> self-signing -> device chain.
+  The client's own devices additionally require a matching local
+  `self_master_key` pin to be marked cross-signed.
+* `mx_crypto_process_sync()` now returns decryptable encrypted echoes of the
+  client's own messages with `is_self = TRUE`, as it already does for
+  cleartext echoes. Consumers can use this flag to ignore their own messages.
+* Sent but unanswered room-key requests remain stored until recovery;
+  automatic expiry/pruning is deferred to a follow-up.
+
+## Fixes
+
+* Unsatisfied room-key requests now persist an explicit transport state and
+  retry with the same request id until successfully sent.
+* Outbound Megolm sessions retain a local inbound copy so the client's own
+  echoed messages decrypt without requesting their keys from itself.
+* Requests originating from this same device are not surfaced to key-sharing
+  policy, and forwarded keys never mark the original room sender verified.
+* Malformed peer cross-signatures are treated as invalid instead of aborting
+  verification of every device returned by `/keys/query`.
+* Rerunning cross-signing bootstrap skips valid signatures already on the
+  server. New request ids use integer milliseconds and one random suffix.
+
 # mx.client 0.2.0.7
 
 ## Fixes
