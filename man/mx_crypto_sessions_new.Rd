@@ -7,7 +7,7 @@ mx_crypto_sessions_new()
 }
 \value{
 A session set: named lists \code{olm}, \code{olm_in},
-  \code{megolm_out}, \code{megolm_in}.
+  \code{megolm_out}, \code{megolm_in}, and \code{key_requests}.
 }
 \description{
 Create an empty E2EE session set

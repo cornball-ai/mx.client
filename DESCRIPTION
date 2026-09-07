@@ -22,12 +22,12 @@ Depends:
     R (>= 4.0)
 Imports:
     jsonlite,
-    mx.api (>= 0.3.0),
+    mx.api (>= 0.3.0.2),
     stats,
     tools,
     utils
 Suggests:
-    mx.crypto (>= 0.2.0),
+    mx.crypto (>= 0.2.1.1),
     simplermarkdown,
     tinytest
 VignetteBuilder: simplermarkdown

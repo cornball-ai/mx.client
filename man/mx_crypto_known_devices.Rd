@@ -3,7 +3,12 @@
 \alias{mx_crypto_known_devices}
 \title{List the devices (and identity keys) of some users}
 \usage{
-mx_crypto_known_devices(client, user_ids, strict = FALSE)
+mx_crypto_known_devices(
+  client,
+  user_ids,
+  strict = FALSE,
+  self_master_key = NULL
+)
 }
 \arguments{
 \item{client}{Matrix client config.}
@@ -12,10 +17,17 @@ mx_crypto_known_devices(client, user_ids, strict = FALSE)
 
 \item{strict}{Logical. Treat a \code{failures} map as an error rather
 than a warning.}
+
+\item{self_master_key}{Character or NULL. Trusted local cross-signing
+master public key for \code{client$user_id}. This user's devices are
+cross-signed only when their verified chain matches this key. NULL
+leaves this user's devices not cross-signed; other users' chains are
+checked for internal consistency only.}
 }
 \value{
 List of verified devices, each \code{list(user_id, device_id,
-  curve25519, ed25519)}.
+  curve25519, ed25519, cross_signed, master_key)}. \code{master_key} is
+  the server-reported key from a valid chain, even if it fails the pin.
 }
 \description{
 Queries \code{/keys/query} and flattens the result to a list of devices.

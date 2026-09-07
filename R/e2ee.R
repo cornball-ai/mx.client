@@ -5,12 +5,14 @@
 # sending to-device, sending the event) stays with the caller / mx.api;
 # this layer is pure crypto state, so it is testable without a server.
 #
-# A session set is a list with four named maps:
+# A session set is a list with five named maps:
 #   olm        peer Curve25519 -> outbound Olm session (we encrypt to them)
 #   olm_in     peer Curve25519 -> inbound Olm session  (they encrypt to us)
 #   megolm_out room id          -> list(session, shared = peer curves)
 #   megolm_in  "room|session_id" -> list(session, sender, sender_ed25519,
 #                                        sender_bound)
+#   key_requests "room|session_id" -> outstanding m.room_key_request metadata,
+#                                        including whether transport succeeded
 #
 # megolm_in carries the sender identity the Olm payload claimed when the
 # key was shared, plus whether that claim was tied to a device whose
@@ -22,13 +24,14 @@
 #' Create an empty E2EE session set
 #'
 #' @return A session set: named lists \code{olm}, \code{olm_in},
-#'   \code{megolm_out}, \code{megolm_in}.
+#'   \code{megolm_out}, \code{megolm_in}, and \code{key_requests}.
 #' @examples
 #' s <- mx_crypto_sessions_new()
 #' names(s)
 #' @export
 mx_crypto_sessions_new <- function() {
-    list(olm = list(), olm_in = list(), megolm_out = list(), megolm_in = list())
+    list(olm = list(), olm_in = list(), megolm_out = list(),
+         megolm_in = list(), key_requests = list())
 }
 
 #' Persist a session set to the crypto store
@@ -62,12 +65,13 @@ mx_crypto_sessions_save <- function(sessions, store_dir) {
         list(session = mx.crypto::mxc_megolm_outbound_pickle(m$session, key),
              shared = as.list(m$shared))
     }),
-                 megolm_in = lapply(sessions$megolm_in, function(e) {
+        megolm_in = lapply(sessions$megolm_in, function(e) {
         list(session = mx.crypto::mxc_megolm_inbound_pickle(e$session, key),
              sender = e$sender %||% NA_character_,
              sender_ed25519 = e$sender_ed25519 %||% NA_character_,
              sender_bound = isTRUE(e$sender_bound))
-    })
+    }),
+        key_requests = sessions$key_requests %||% list()
     )
     path <- file.path(store_dir, "sessions.json")
     writeLines(jsonlite::toJSON(blob, auto_unbox = TRUE), path)
@@ -132,6 +136,7 @@ mx_crypto_sessions_load <- function(store_dir) {
                                     sender_ed25519 = e$sender_ed25519 %||% NA_character_,
                                     sender_bound = isTRUE(e$sender_bound))
     }
+    out$key_requests <- blob$key_requests %||% list()
     out
 }
 
@@ -188,6 +193,23 @@ mx_crypto_encrypt_for_devices <- function(account, sessions, room_id,
         mo <- list(session = mx.crypto::mxc_megolm_outbound_new(),
                    shared = character())
     }
+    # Keep an inbound copy of our outbound session. Homeservers echo our room
+    # events through /sync; without this, own echoes generate key requests to
+    # this same device. This also repairs older stores on their next send.
+    outbound_info <- mx.crypto::mxc_megolm_outbound_info(mo$session)
+    own_key <- paste(room_id, outbound_info$session_id, sep = "|")
+    if (is.null(sessions$megolm_in[[own_key]])) {
+        bound <- is.character(sender_user_id) &&
+            length(sender_user_id) == 1L &&
+            !is.na(sender_user_id) && nzchar(sender_user_id)
+        sessions$megolm_in[[own_key]] <- list(
+            session = mx.crypto::mxc_megolm_inbound_new(
+                outbound_info$session_key),
+            sender = sender_user_id %||% NA_character_,
+            sender_ed25519 = sender_ed25519,
+            sender_bound = bound)
+    }
+
 
     to_device <- list()
     for (r in recipients) {
@@ -229,10 +251,11 @@ mx_crypto_encrypt_for_devices <- function(account, sessions, room_id,
 #' Process a sync response: store room keys, decrypt room events
 #'
 #' Handles inbound to-device \code{m.room.encrypted} (Olm) messages,
-#' storing any \code{m.room_key} as an inbound Megolm session, then
-#' decrypts \code{m.room.encrypted} timeline events whose session is
-#' known. Returns normalized text events in the same shape as
-#' \code{mx_extract_text_events()}, plus the updated session set.
+#' storing direct \code{m.room_key} events and requested
+#' \code{m.forwarded_room_key} events as inbound Megolm sessions. It then
+#' decrypts timeline events whose session is known and queues stable,
+#' retryable \code{m.room_key_request} messages for missing sessions. The
+#' caller sends those requests to this user's other devices.
 #'
 #' @param account An mx.crypto account handle.
 #' @param sessions A session set.
@@ -243,12 +266,19 @@ mx_crypto_encrypt_for_devices <- function(account, sessions, room_id,
 #'   carrying a claimed sender, and anyone who can reach this device can
 #'   send one, so the claim is only worth something once it is matched
 #'   against a device whose \code{device_keys} verified. Without this
-#'   list decrypted events always report \code{sender_verified = FALSE}:
-#'   they still decrypt, but nothing attests to who sent them.
+#'   list peers' decrypted events report \code{sender_verified = FALSE}:
+#'   they still decrypt, but nothing attests to who sent them. Own echoes
+#'   can be verified against the locally retained outbound session. Forwarded
+#'   keys require this user's cross-signed devices, queried with a trusted
+#'   local \code{self_master_key}; they never verify the original sender.
 #' @param self_id Character or NULL. This user's Matrix id, for
-#'   \code{is_self} tagging.
-#' @return List with \code{events} (decrypted, normalized) and the updated
-#'   \code{sessions}.
+#'   \code{is_self} tagging and as the recipient of key requests.
+#' @param self_device_id Character or NULL. This device id. Both this and
+#'   \code{self_id} are required to create room-key requests.
+#' @return List with \code{events} (decrypted, normalized), updated
+#'   \code{sessions}, unsent \code{key_requests}, matching
+#'   \code{key_request_cancellations}, and \code{incoming_key_requests}
+#'   for a policy-aware sharing layer to inspect.
 #' @examples
 #' \donttest{
 #' if (requireNamespace("mx.crypto", quietly = TRUE)) {
@@ -262,12 +292,30 @@ mx_crypto_encrypt_for_devices <- function(account, sessions, room_id,
 #' @export
 mx_crypto_process_sync <- function(account, sessions, sync_resp,
                                    self_curve25519, self_id = NULL,
-                                   devices = NULL) {
+                                   devices = NULL, self_device_id = NULL) {
     mx_require_crypto()
     self_ed25519 <- mx.crypto::mxc_account_identity_keys(account)$ed25519
+    sessions$key_requests <- sessions$key_requests %||% list()
+    cancellations <- list()
+    incoming_requests <- list()
 
     # 1. To-device: recover shared room keys.
     for (ev in sync_resp$to_device$events %||% list()) {
+        if (isTRUE(ev$type == "m.room_key_request")) {
+            c <- ev$content
+            # Wildcard delivery includes this device; do not surface our own
+            # request to a future key-sharing layer.
+            if (!is.null(self_device_id) &&
+                identical(c$requesting_device_id, self_device_id)) next
+            if (isTRUE(c$action %in% c("request", "request_cancellation")) &&
+                is.character(c$request_id) && nzchar(c$request_id) &&
+                is.character(c$requesting_device_id) &&
+                nzchar(c$requesting_device_id)) {
+                incoming_requests[[length(incoming_requests) + 1L]] <- list(
+                    user_id = ev$sender, content = c)
+            }
+            next
+        }
         if (!isTRUE(ev$type == "m.room.encrypted") ||
             !isTRUE(ev$content$algorithm == MX_OLM)) {
             next
@@ -297,6 +345,9 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
         }
         if (identical(decoded$type, "m.room_key")) {
             c <- decoded$content
+            if (!identical(c$algorithm, MX_MEGOLM)) {
+                next
+            }
             key <- paste(c$room_id, c$session_id, sep = "|")
             # Record who the payload claimed to be from, and separately
             # whether that claim was tied to a verified device. Keeping the
@@ -309,6 +360,57 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
                 sender = decoded$sender,
                 sender_ed25519 = decoded$keys$ed25519,
                 sender_bound = chk$bound)
+            pending <- sessions$key_requests[[key]]
+            if (!is.null(pending)) {
+                cancellations[[length(cancellations) + 1L]] <-
+                    mx_crypto_key_request_cancellation(pending)
+                sessions$key_requests[[key]] <- NULL
+            }
+        } else if (identical(decoded$type, "m.forwarded_room_key")) {
+            c <- decoded$content
+            key <- paste(c$room_id, c$session_id, sep = "|")
+            pending <- sessions$key_requests[[key]]
+            # Forwarded room keys are deliberately much stricter than an
+            # ordinary m.room_key. The Matrix spec limits this mechanism to
+            # verified devices owned by the requesting user. An unsolicited
+            # key, a key from another user, or one from a merely self-signed
+            # (not cross-signed) device is ignored.
+            forwarder <- mx_crypto_matching_device(decoded, sender, devices)
+            trusted_forwarder <- isTRUE(chk$bound) &&
+                identical(decoded$sender, self_id) &&
+                isTRUE(forwarder$cross_signed)
+            valid <- !is.null(pending) && trusted_forwarder &&
+                identical(c$algorithm, MX_MEGOLM) &&
+                identical(c$room_id, pending$room_id) &&
+                identical(c$session_id, pending$session_id) &&
+                is.character(c$session_key) && nzchar(c$session_key)
+            if (!valid) {
+                warning("mx.client: ignoring unsolicited or untrusted ",
+                        "m.forwarded_room_key", call. = FALSE)
+                next
+            }
+            inbound <- tryCatch(
+                mx.crypto::mxc_megolm_inbound_import(c$session_key),
+                error = function(e) NULL)
+            if (is.null(inbound) || !identical(
+                    mx.crypto::mxc_megolm_inbound_info(inbound)$session_id,
+                    pending$session_id)) {
+                warning("mx.client: ignoring forwarded room key whose ",
+                        "exported session does not match its session_id",
+                        call. = FALSE)
+                next
+            }
+            # Olm authenticates the forwarding device, not the original room
+            # sender. Imported history must never be labelled sender-verified.
+            sessions$megolm_in[[key]] <- list(
+                session = inbound,
+                sender = pending$event_sender,
+                sender_ed25519 = c$sender_claimed_ed25519_key %||%
+                    NA_character_,
+                sender_bound = FALSE)
+            cancellations[[length(cancellations) + 1L]] <-
+                mx_crypto_key_request_cancellation(pending)
+            sessions$key_requests[[key]] <- NULL
         }
     }
 
@@ -324,6 +426,25 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
             key <- paste(rid, ev$content$session_id, sep = "|")
             entry <- sessions$megolm_in[[key]]
             if (is.null(entry)) {
+                # Older stores can have an outbound session without its local
+                # inbound mirror. Do not request a key this device created.
+                own_out <- sessions$megolm_out[[rid]]
+                own_session_id <- if (is.null(own_out)) NULL else tryCatch(
+                    mx.crypto::mxc_megolm_outbound_info(
+                        own_out$session)$session_id,
+                    error = function(e) NULL)
+                if (identical(ev$content$session_id, own_session_id)) {
+                    next
+                }
+                if (!is.null(self_id) && !is.null(self_device_id) &&
+                    is.null(sessions$key_requests[[key]])) {
+                    request <- mx_crypto_key_request(
+                        self_id, self_device_id, rid,
+                        ev$content$session_id,
+                        ev$content$sender_key %||% NULL,
+                        ev$sender %||% NA_character_)
+                    sessions$key_requests[[key]] <- request
+                }
                 next
             }
             dec <- tryCatch(mx_crypto_decrypt_event(entry$session, ev$content),
@@ -365,5 +486,13 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
         }
     }
 
-    list(events = events, sessions = sessions)
+    # A request is durable work until transport records a successful send.
+    # Requeue unsent entries even after the original timeline event is gone.
+    key_requests <- unname(Filter(
+        function(request) !isTRUE(request$sent), sessions$key_requests))
+
+    list(events = events, sessions = sessions,
+         key_requests = key_requests,
+         key_request_cancellations = cancellations,
+         incoming_key_requests = incoming_requests)
 }

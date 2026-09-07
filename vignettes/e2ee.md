@@ -21,13 +21,22 @@ plaintext Matrix clients install and run without Rust.
 
 Read this first; it frames what the rest of the vignette delivers.
 
-- **Trust on first use.** Device keys come from `/keys/query` and are
-  used as-is. There is no cross-signing trust store yet, so a malicious
-  homeserver could substitute device keys on first contact.
-  (`mx.crypto` ships the verification primitives,
-  `mxc_verify_device_keys()`; wiring a trust store is future work.)
-- **No key requests or forwarded keys.** A device that missed the
-  original `m.room_key` cannot ask peers to re-share it.
+- **Verified device objects.** Every `/keys/query` device object must carry a
+  valid Ed25519 self-signature. Cross-signed devices additionally require a
+  valid master -> self-signing -> device chain. Trusting the master remains a
+  user decision; an internally valid chain alone does not establish that the
+  master belongs to the expected person.
+- **Fail-closed bootstrap.** Cross-signing private keys are encrypted in the
+  local crypto store. Bootstrap never resets an existing server identity when
+  its private keys are absent or disagree.
+- **Same-user key recovery.** Missing Megolm sessions generate durable,
+  deduplicated `m.room_key_request` events. A forwarded key is accepted only
+  for an outstanding request and only over Olm from this user's cross-signed
+  device. Pass the locally trusted master to `mx_crypto_known_devices()` as
+  `self_master_key`; without it, this user's devices are not cross-signed.
+  This cannot recover another user's historical outbound session, and
+  decrypted history from a forwarded key never reports its original sender as
+  verified.
 - **No SAS (emoji) verification.**
 - **Local-key storage.** Ratchet state is pickled with a locally stored
   32-byte key (file mode 0600). That guards against casual inspection;
@@ -76,6 +85,37 @@ signs and uploads one-time keys (`/keys/upload`), marks them published,
 and saves the account. Run it again whenever the server's
 `one_time_key_counts` runs low.
 
+## Cross-signing bootstrap
+
+Stop any other process using this device's crypto store, then load the same
+persisted account and bootstrap its cross-signing identity:
+
+```r
+keys <- mx_crypto_cross_signing_bootstrap(
+    client, acct, store,
+    password = Sys.getenv("MATRIX_PASSWORD"))
+
+devices <- mx_crypto_known_devices(client, client$user_id, strict = TRUE,
+                                  self_master_key = keys$master)
+mine <- Filter(function(device) {
+    identical(device$device_id, client$device_id)
+}, devices)
+stopifnot(length(mine) == 1L, isTRUE(mine[[1L]]$cross_signed))
+```
+
+The password is used only when the homeserver requires password-based UIA and
+must not be printed or embedded in source. A completed `auth` object can be
+passed instead. Bootstrap saves the private master, self-signing, and
+user-signing keys before uploading public objects. It is idempotent when the
+local and server master keys agree and fails closed if the server identity has
+no matching local private keys.
+Valid device and master signatures already returned by `/keys/query` are
+skipped on rerun.
+
+Cross-signed is not the same as trusted. Another client must independently
+verify the master identity before treating its signature chain as belonging to
+the expected person.
+
 ## Sending
 
 ```r
@@ -112,11 +152,35 @@ a single Megolm encrypt + send.
 ```r
 res <- mx_sync_update(client, timeout = 30000L)
 
+signing <- mx_crypto_cross_signing_load(store)
+master_pin <- if (is.null(signing)) NULL else
+    mx.crypto::mxc_signing_key_public(signing$master)
+# Include our own devices for history recovery, plus every encrypted sender
+# in this sync for attribution. This example has one other participant.
+devices <- mx_crypto_known_devices(
+    client, c(client$user_id, "@friend:example.org"),
+    self_master_key = master_pin)
+
 my_curve <- mx.crypto::mxc_account_identity_keys(acct)$curve25519
 out <- mx_crypto_process_sync(acct, sessions, res$sync, my_curve,
-                              self_id = client$user_id)
+                              self_id = client$user_id,
+                              self_device_id = client$device_id,
+                              devices = devices)
 sessions <- out$sessions
 mx_crypto_sessions_save(sessions, store)
+
+sent <- list()
+for (request in out$key_requests) {
+    ok <- tryCatch({
+        mx_crypto_send_key_requests(client, list(request)); TRUE
+    }, error = function(e) FALSE)
+    if (ok) sent[[length(sent) + 1L]] <- request
+}
+sessions <- mx_crypto_mark_key_requests_sent(sessions, sent)
+mx_crypto_sessions_save(sessions, store)
+for (cancel in out$key_request_cancellations) {
+    try(mx_crypto_send_key_requests(client, list(cancel)), silent = TRUE)
+}
 
 for (ev in out$events) cat(ev$sender, ":", ev$body, "\n")
 ```
@@ -124,15 +188,24 @@ for (ev in out$events) cat(ev$sender, ":", ev$body, "\n")
 `mx_crypto_process_sync()` makes two passes over the sync response:
 
 1. **To-device events**: Olm-decrypts anything addressed to this
-   device's Curve25519 key. Each recovered `m.room_key` becomes an
-   inbound Megolm session, stored under `room_id|session_id`.
+   device's Curve25519 key. Direct `m.room_key` events become inbound
+   Megolm sessions. Requested `m.forwarded_room_key` events are imported
+   only after their request, sender, cross-signing chain, and computed
+   session ID validate.
 2. **Room timelines**: decrypts every `m.room.encrypted` event whose
-   session is known, returning records in the same shape as
-   `mx_extract_text_events()` — `room_id`, `event_id`, `sender`,
-   `is_self`, `body`, `msgtype`, `mentions`.
+   session is known. An unknown session creates one persistent request to
+   the current user's other devices. Decrypted records match
+   `mx_extract_text_events()` and add `sender_verified`.
 
-Events whose keys haven't arrived yet are skipped, not errored; they
-decrypt on a later pass once the to-device message lands.
+The caller saves returned crypto state before making any request transport
+call. Successfully sent requests are then marked and saved again. Failed
+requests remain queued with the same stable id and are returned again on later
+polls; cancellation failures are safe to drop. This ordering prevents a
+network error from replaying a sync batch against already-advanced Olm and
+Megolm ratchets. The `chat.api` Matrix adapter performs this sequence
+automatically and loads its own master pin from the local crypto store for
+device queries. Sent requests with no answer currently remain stored until
+their key arrives; automatic expiry/pruning is deferred.
 
 ## Persistence
 
@@ -142,7 +215,8 @@ Everything stateful lives in the crypto store directory:
 |---|---|
 | `pickle.key` | the locally stored 32-byte key the pickles are encrypted with |
 | `account.pickle` | device identity (Curve25519 + Ed25519 keys, OTK state) |
-| `sessions.json` | pickled Olm sessions and Megolm in/outbound sessions |
+| `sessions.json` | pickled Olm/Megolm sessions and outstanding key requests |
+| `cross-signing.json` | encrypted master, self-signing, and user-signing private keys |
 
 `mx_crypto_sessions_save()` / `mx_crypto_sessions_load()` round-trip the
 session set, so an established room key keeps decrypting across process

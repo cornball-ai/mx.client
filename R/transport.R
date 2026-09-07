@@ -71,20 +71,30 @@ mx_crypto_publish_keys <- function(client, account, store_dir, n_otks = 50L) {
 #' @param user_ids Character vector of Matrix user ids.
 #' @param strict Logical. Treat a \code{failures} map as an error rather
 #'   than a warning.
+#' @param self_master_key Character or NULL. Trusted local cross-signing
+#'   master public key for \code{client$user_id}. This user's devices are
+#'   cross-signed only when their verified chain matches this key. NULL
+#'   leaves this user's devices not cross-signed; other users' chains are
+#'   checked for internal consistency only.
 #' @return List of verified devices, each \code{list(user_id, device_id,
-#'   curve25519, ed25519)}.
+#'   curve25519, ed25519, cross_signed, master_key)}. \code{master_key} is
+#'   the server-reported key from a valid chain, even if it fails the pin.
 #' @examples
 #' \dontrun{
 #' mx_crypto_known_devices(client, "@bob:example.org")
 #' }
 #' @export
-mx_crypto_known_devices <- function(client, user_ids, strict = FALSE) {
+mx_crypto_known_devices <- function(client, user_ids, strict = FALSE,
+                                    self_master_key = NULL) {
     mx_require_crypto()
     s <- mx_client_session(client)
     query <- stats::setNames(rep(list(list()), length(user_ids)), user_ids)
     resp <- mx.api::mx_keys_query(s, device_keys = query)
     mx_crypto_report_failures(resp$failures, "/keys/query", strict)
-    mx_crypto_verify_device_map(resp$device_keys)
+    mx_crypto_verify_device_map(resp$device_keys, resp$master_keys,
+                                resp$self_signing_keys,
+                                self_id = client$user_id,
+                                self_master_key = self_master_key)
 }
 
 # A server we could not reach is not a user with no devices.
@@ -122,9 +132,15 @@ mx_crypto_report_failures <- function(failures, what, strict = FALSE) {
 # user with no devices from a user whose every device was dropped here,
 # and those need different answers: the first is nobody to encrypt to,
 # the second is everybody unreachable.
-mx_crypto_verify_device_map <- function(device_keys_map) {
+mx_crypto_verify_device_map <- function(device_keys_map, master_keys = NULL,
+                                        self_signing_keys = NULL,
+                                        self_id = NULL,
+                                        self_master_key = NULL) {
     out <- list()
     seen <- list()
+    cross_signed <- mx_crypto_cross_signed_devices(
+        device_keys_map, master_keys %||% list(),
+        self_signing_keys %||% list())
     for (uid in names(device_keys_map %||% list())) {
         devs <- device_keys_map[[uid]]
         for (dev in names(devs %||% list())) {
@@ -139,8 +155,18 @@ mx_crypto_verify_device_map <- function(device_keys_map) {
             if (is.null(keys)) {
                 next
             }
-            out[[length(out) + 1L]] <- list(user_id = uid, device_id = dev,
-                curve25519 = keys$curve25519, ed25519 = keys$ed25519)
+            chain_key <- paste(uid, dev, sep = "|")
+            chain_master <- cross_signed[[chain_key]]
+            trusted_chain <- !is.null(chain_master)
+            if (identical(uid, self_id)) {
+                trusted_chain <- trusted_chain &&
+                    identical(chain_master, self_master_key)
+            }
+            out[[length(out) + 1L]] <- list(
+                user_id = uid, device_id = dev,
+                curve25519 = keys$curve25519, ed25519 = keys$ed25519,
+                cross_signed = trusted_chain,
+                master_key = chain_master %||% NA_character_)
         }
     }
     attr(out, "seen") <- seen
