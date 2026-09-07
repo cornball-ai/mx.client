@@ -24,21 +24,34 @@ jobs:
         with:
           backend: RAPT
 
+      # The cross-signing APIs are development releases published to drat.
+      # Install them before install_deps checks the hard mx.api floor. rapt
+      # otherwise selects an older r2u binary by name, ignoring that floor.
+      - name: Install Matrix development dependencies
+        run: |
+          Rscript -e 'install.packages(c("curl", "jsonlite"))'
+          Rscript -e '
+            if (isTRUE(getOption("rapt.enabled"))) rapt::disable()
+            floors <- c("mx.api" = "0.3.0.2", "mx.crypto" = "0.2.1.1")
+            utils::install.packages(names(floors),
+                             repos = "https://cornball-ai.github.io/drat",
+                             type = "source", dependencies = FALSE)
+            for (p in names(floors)) {
+              if (!requireNamespace(p, quietly = TRUE) ||
+                  utils::packageVersion(p) < floors[[p]])
+                stop("CI needs ", p, " >= ", floors[[p]],
+                     "; publish the upstream development release to drat first")
+              message(p, " ", utils::packageVersion(p))
+            }'
+
       - name: Dependencies
         run: ./run.sh install_deps
 
-      - name: Install suggested packages
-        # install_deps covers Imports only. Without mx.crypto every E2EE
-        # test calls exit_file() and CI goes green having exercised none of
-        # the encryption path -- which is how unverified homeserver keys
-        # shipped in the first place. simplermarkdown is needed for R CMD
-        # check to treat vignettes/e2ee.md as a vignette rather than a
-        # stray file.
-        #
-        # Both arrive as binaries (r2u on Linux, CRAN on macOS), so no Rust
-        # toolchain is needed despite mx.crypto being a Rust package. The
-        # runners ship rustc anyway if a source build is ever forced.
-        run: Rscript -e 'install.packages(c("mx.crypto", "simplermarkdown"))'
+      # mx.crypto above builds from its vendored Rust sources using the
+      # hosted runner's Rust toolchain. simplermarkdown is still needed for
+      # R CMD check to recognize vignettes/e2ee.md as a vignette.
+      - name: Install vignette builder
+        run: Rscript -e 'install.packages("simplermarkdown")'
 
       - name: Test
         run: ./run.sh run_tests
