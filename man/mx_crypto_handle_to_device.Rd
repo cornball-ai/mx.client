@@ -9,7 +9,8 @@ mx_crypto_handle_to_device(
   content,
   self_id = NULL,
   self_ed25519 = NULL,
-  devices = NULL
+  devices = NULL,
+  olm_sessions = list()
 )
 }
 \arguments{
@@ -31,10 +32,18 @@ claimed sender to a device whose keys were verified. The result
 carries \code{sender_bound}, which is FALSE when no list is supplied
 or nothing matches; an unbound sender identity is a claim, not a
 fact, because anyone can open an Olm session to this device.}
+
+\item{olm_sessions}{List of existing Olm session handles for this sender,
+whether locally or remotely initiated. Both normal and prekey messages
+try these sessions first; successful decryption advances the handle in
+place. With no matching session, only a prekey message can open one.
+Use \code{mx_crypto_process_sync()} to retain newly created sessions
+and persist the returned state with \code{mx_crypto_sessions_save()}.}
 }
 \value{
 The decrypted event (a parsed list) with a \code{sender_bound}
-  flag, or NULL if it was not for us or failed the recipient checks.
+  flag, or NULL if it was not for us, could not be decrypted, or failed
+  the recipient checks. Undecryptable messages produce a warning.
 }
 \description{
 Accepts an \code{m.room.encrypted} to-device content addressed to this
