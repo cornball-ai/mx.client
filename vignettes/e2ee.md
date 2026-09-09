@@ -197,6 +197,21 @@ for (ev in out$events) cat(ev$sender, ":", ev$body, "\n")
    the current user's other devices. Decrypted records match
    `mx_extract_text_events()` and add `sender_verified`.
 
+Olm sessions carry messages in both directions. For each sender key, the
+receiver tries the stored remotely initiated session (`olm_in`) and the
+locally initiated session (`olm`). This applies to both normal and prekey
+messages. If neither session decrypts, only a prekey can create a new
+inbound session. Messages that cannot be decrypted or used to create a
+session warn and are skipped, allowing the rest of the batch to proceed.
+The two-map storage format is unchanged and retains only one session per
+sender key in each map.
+
+The lower-level `mx_crypto_handle_to_device()` accepts a list of existing
+handles through `olm_sessions`. It advances a successful handle in place,
+but does not retain a newly created session for the caller. Stateful clients
+should use `mx_crypto_process_sync()` and save the returned sessions.
+Undecryptable messages return `NULL` with a warning.
+
 The caller saves returned crypto state before making any request transport
 call. Successfully sent requests are then marked and saved again. Failed
 requests remain queued with the same stable id and are returned again on later

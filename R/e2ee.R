@@ -325,19 +325,14 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
             next
         }
         sender <- ev$content$sender_key
-        plaintext <- if (identical(as.integer(msg$type), 0L)) {
-            res <- mx.crypto::mxc_olm_create_inbound(account,
-                peer_curve25519 = sender, prekey_b64 = msg$body)
+        res <- olm_receive(account, sender, msg,
+            list(sessions$olm_in[[sender]], sessions$olm[[sender]]))
+        if (is.null(res)) next
+        if (res$new) {
             sessions$olm_in[[sender]] <- res$session
-            rawToChar(res$plaintext)
-        } else {
-            s <- sessions$olm_in[[sender]]
-            if (is.null(s)) {
-                next
-            }
-            rawToChar(mx.crypto::mxc_olm_decrypt(s, msg$type, msg$body))
         }
-        decoded <- jsonlite::fromJSON(plaintext, simplifyVector = FALSE)
+        decoded <- olm_decode(res$plaintext)
+        if (is.null(decoded)) next
         chk <- mx_crypto_check_olm_payload(decoded, self_id, self_ed25519,
             sender, devices)
         if (!chk$ok) {
