@@ -1,3 +1,19 @@
+# mx.client 0.2.0.9
+
+## Fixes
+
+* Receive Olm messages on locally initiated sessions as well as remotely
+  initiated sessions. A peer's room-key reply can now install its Megolm
+  key and decrypt the associated timeline event.
+* Try existing sessions before creating an inbound session from a prekey
+  message. Failed decryption or prekey creation warns and skips that event
+  rather than aborting the sync batch; malformed JSON plaintext is contained.
+* `mx_crypto_handle_to_device()` accepts existing peer session handles via
+  the optional `olm_sessions` argument. Undecryptable normal messages now
+  warn and return `NULL` instead of stopping.
+* Session storage retains the existing two-map format. A unified per-peer
+  session history is deferred; older sessions replaced in a map remain lost.
+
 # mx.client 0.2.0.8
 
 ## Documentation
