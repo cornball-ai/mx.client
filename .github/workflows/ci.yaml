@@ -24,25 +24,17 @@ jobs:
         with:
           backend: RAPT
 
-      # The cross-signing APIs are development releases published to drat.
-      # Install them before install_deps checks the hard mx.api floor. rapt
-      # otherwise selects an older r2u binary by name, ignoring that floor.
+      # Keep older E2EE dependency floors in DESCRIPTION. SAS needs the
+      # reviewed crypto build below until it is available on CRAN/drat.
+      # Disable rapt for these source installs so it cannot substitute an
+      # older binary. The helper reads the base floors from DESCRIPTION.
       - name: Install Matrix development dependencies
+        env:
+          # mx.crypto PR #8, merged to main at version 0.2.1.2.
+          MX_CRYPTO_REF: "7feb052ab40e7ac5620b4d405635a2bc4905984c"
         run: |
           Rscript -e 'install.packages(c("curl", "jsonlite"))'
-          Rscript -e '
-            if (isTRUE(getOption("rapt.enabled"))) rapt::disable()
-            floors <- c("mx.api" = "0.3.0.2", "mx.crypto" = "0.2.1.1")
-            utils::install.packages(names(floors),
-                             repos = "https://cornball-ai.github.io/drat",
-                             type = "source", dependencies = FALSE)
-            for (p in names(floors)) {
-              if (!requireNamespace(p, quietly = TRUE) ||
-                  utils::packageVersion(p) < floors[[p]])
-                stop("CI needs ", p, " >= ", floors[[p]],
-                     "; publish the upstream development release to drat first")
-              message(p, " ", utils::packageVersion(p))
-            }'
+          Rscript .github/install-matrix-deps.R
 
       - name: Dependencies
         run: ./run.sh install_deps
@@ -55,3 +47,9 @@ jobs:
 
       - name: Test
         run: ./run.sh run_tests
+        env:
+          R_BUILD_ARGS: "--no-manual"
+          R_CHECK_ARGS: "--no-manual --as-cran"
+
+      - name: Check warnings and SAS coverage
+        run: Rscript .github/check-results.R
