@@ -41,6 +41,8 @@ local \code{self_master_key}; they never verify the original sender.}
 }
 \value{
 List with \code{events} (decrypted, normalized), updated
+  \code{verification_events} (original verification envelopes, separated
+  from chat messages; no handshake or network side effect is performed),
   \code{sessions}, unsent \code{key_requests}, matching
   \code{key_request_cancellations}, and \code{incoming_key_requests}
   for a policy-aware sharing layer to inspect.

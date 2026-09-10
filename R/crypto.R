@@ -395,6 +395,8 @@ mx_crypto_inbound_session <- function(session_key) {
 #' @param room_id Character. Room id.
 #' @param sender_curve25519 Character. This device's Curve25519 key.
 #' @param device_id Character. This device's id.
+#' @param event_type Inner Matrix event type. Defaults to m.room.message;
+#'   verification replies use their m.key.verification.* event type.
 #' @return A named list: \code{m.room.encrypted} content.
 #' @examples
 #' \dontrun{
@@ -403,20 +405,27 @@ mx_crypto_inbound_session <- function(session_key) {
 #' }
 #' @export
 mx_crypto_encrypt_event <- function(megolm_out, content, room_id,
-                                    sender_curve25519, device_id) {
+                                    sender_curve25519, device_id,
+                                    event_type = "m.room.message") {
     mx_require_crypto()
+    if (!sas_scalar(event_type) || !is.list(content)) {
+        stop("mx.client: invalid encrypted event type or content", call. = FALSE)
+    }
     info <- mx.crypto::mxc_megolm_outbound_info(megolm_out)
-    payload <- list(type = "m.room.message", room_id = room_id,
+    payload <- list(type = event_type, room_id = room_id,
                     content = content)
     ct <- mx.crypto::mxc_megolm_encrypt(
                                         megolm_out, charToRaw(mx.api::mx_canonical_json(payload)))
-    list(
+    encrypted <- list(
          algorithm = MX_MEGOLM,
          sender_key = sender_curve25519,
          device_id = device_id,
          session_id = info$session_id,
          ciphertext = ct
     )
+    # Matrix relations must also be visible outside encrypted event content.
+    encrypted$`m.relates_to` <- content$`m.relates_to`
+    encrypted
 }
 
 #' Decrypt an m.room.encrypted event (Megolm)

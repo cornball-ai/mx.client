@@ -77,7 +77,12 @@ mx_crypto_publish_keys <- function(client, account, store_dir, n_otks = 50L) {
 #'   leaves this user's devices not cross-signed; other users' chains are
 #'   checked for internal consistency only.
 #' @return List of verified devices, each \code{list(user_id, device_id,
-#'   curve25519, ed25519, cross_signed, master_key)}. \code{master_key} is
+#'   curve25519, ed25519, cross_signed, master_key, identity_verified)}.
+#'   \code{identity_verified} additionally requires the locally pinned master
+#'   for this user, or its authenticated user-signing signature on another
+#'   user's master, followed by that user's self-signing/device chain. This
+#'   metadata does not change recipient policy or the existing device-level
+#'   meaning of \code{sender_verified}. \code{master_key} is
 #'   the server-reported key from a valid chain, even if it fails the pin.
 #' @examples
 #' \dontrun{
@@ -89,12 +94,18 @@ mx_crypto_known_devices <- function(client, user_ids, strict = FALSE,
     mx_require_crypto()
     s <- mx_client_session(client)
     query <- stats::setNames(rep(list(list()), length(user_ids)), user_ids)
+    # Our user-signing key is needed even when only peers were requested.
+    if (!is.null(self_master_key)) {
+        query[[client$user_id]] <- list()
+    }
     resp <- mx.api::mx_keys_query(s, device_keys = query)
     mx_crypto_report_failures(resp$failures, "/keys/query", strict)
-    mx_crypto_verify_device_map(resp$device_keys, resp$master_keys,
+    requested <- resp$device_keys[names(resp$device_keys) %in% user_ids]
+    mx_crypto_verify_device_map(requested, resp$master_keys,
                                 resp$self_signing_keys,
                                 self_id = client$user_id,
-                                self_master_key = self_master_key)
+                                self_master_key = self_master_key,
+                                user_signing_keys = resp$user_signing_keys)
 }
 
 # A server we could not reach is not a user with no devices.
@@ -135,9 +146,12 @@ mx_crypto_report_failures <- function(failures, what, strict = FALSE) {
 mx_crypto_verify_device_map <- function(device_keys_map, master_keys = NULL,
                                         self_signing_keys = NULL,
                                         self_id = NULL,
-                                        self_master_key = NULL) {
+                                        self_master_key = NULL,
+                                        user_signing_keys = NULL) {
     out <- list()
     seen <- list()
+    trusted_masters <- mx_crypto_trusted_master_keys(
+        master_keys, user_signing_keys, self_id, self_master_key)
     cross_signed <- mx_crypto_cross_signed_devices(
         device_keys_map, master_keys %||% list(),
         self_signing_keys %||% list())
@@ -166,7 +180,10 @@ mx_crypto_verify_device_map <- function(device_keys_map, master_keys = NULL,
                 user_id = uid, device_id = dev,
                 curve25519 = keys$curve25519, ed25519 = keys$ed25519,
                 cross_signed = trusted_chain,
-                master_key = chain_master %||% NA_character_)
+                master_key = chain_master %||% NA_character_,
+                identity_verified = !is.null(chain_master) &&
+                    if (identical(uid, self_id)) trusted_chain else
+                        identical(chain_master, trusted_masters[[uid]]))
         }
     }
     attr(out, "seen") <- seen
