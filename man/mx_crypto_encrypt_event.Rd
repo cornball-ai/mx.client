@@ -8,7 +8,8 @@ mx_crypto_encrypt_event(
   content,
   room_id,
   sender_curve25519,
-  device_id
+  device_id,
+  event_type = "m.room.message"
 )
 }
 \arguments{
@@ -22,6 +23,9 @@ mx_crypto_encrypt_event(
 \item{sender_curve25519}{Character. This device's Curve25519 key.}
 
 \item{device_id}{Character. This device's id.}
+
+\item{event_type}{Inner Matrix event type. Defaults to m.room.message;
+verification replies use their m.key.verification.* event type.}
 }
 \value{
 A named list: \code{m.room.encrypted} content.

@@ -162,6 +162,7 @@ mx_crypto_sessions_load <- function(store_dir) {
 #'   exactly this shape for devices whose keys verified.
 #' @param sender_user_id Character. This user's Matrix id. Required to
 #'   build a spec-conformant Olm payload that the recipient can attribute.
+#' @param event_type Inner Matrix event type, defaulting to m.room.message.
 #' @return List with \code{to_device} (per-device payloads), \code{event}
 #'   (the \code{m.room.encrypted} content), and the updated \code{sessions}.
 #' @examples
@@ -180,7 +181,7 @@ mx_crypto_sessions_load <- function(store_dir) {
 mx_crypto_encrypt_for_devices <- function(account, sessions, room_id,
     content, sender_curve25519,
     device_id, recipients = list(),
-    sender_user_id = NULL) {
+    sender_user_id = NULL, event_type = "m.room.message") {
     mx_require_crypto()
     if (length(recipients) && is.null(sender_user_id)) {
         stop("sender_user_id is required to share room keys; without it the ",
@@ -243,7 +244,7 @@ mx_crypto_encrypt_for_devices <- function(account, sessions, room_id,
     }
 
     event <- mx_crypto_encrypt_event(mo$session, content, room_id,
-                                     sender_curve25519, device_id)
+                                     sender_curve25519, device_id, event_type)
     sessions$megolm_out[[room_id]] <- mo
     list(to_device = to_device, event = event, sessions = sessions)
 }
@@ -276,6 +277,8 @@ mx_crypto_encrypt_for_devices <- function(account, sessions, room_id,
 #' @param self_device_id Character or NULL. This device id. Both this and
 #'   \code{self_id} are required to create room-key requests.
 #' @return List with \code{events} (decrypted, normalized), updated
+#'   \code{verification_events} (original verification envelopes, separated
+#'   from chat messages; no handshake or network side effect is performed),
 #'   \code{sessions}, unsent \code{key_requests}, matching
 #'   \code{key_request_cancellations}, and \code{incoming_key_requests}
 #'   for a policy-aware sharing layer to inspect.
@@ -298,9 +301,14 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
     sessions$key_requests <- sessions$key_requests %||% list()
     cancellations <- list()
     incoming_requests <- list()
+    verification_events <- list()
 
     # 1. To-device: recover shared room keys.
     for (ev in sync_resp$to_device$events %||% list()) {
+        if (sas_is_event(ev)) {
+            verification_events[[length(verification_events) + 1L]] <- ev
+            next
+        }
         if (isTRUE(ev$type == "m.room_key_request")) {
             c <- ev$content
             # Wildcard delivery includes this device; do not surface our own
@@ -338,7 +346,12 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
         if (!chk$ok) {
             next
         }
-        if (identical(decoded$type, "m.room_key")) {
+        if (sas_is_event(decoded)) {
+            if (!identical(decoded$sender, ev$sender)) next
+            verification_events[[length(verification_events) + 1L]] <- list(
+                type = decoded$type, content = decoded$content,
+                sender = decoded$sender)
+        } else if (identical(decoded$type, "m.room_key")) {
             c <- decoded$content
             if (!identical(c$algorithm, MX_MEGOLM)) {
                 next
@@ -414,6 +427,11 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
     joined <- sync_resp$rooms$join %||% list()
     for (rid in names(joined)) {
         for (ev in joined[[rid]]$timeline$events %||% list()) {
+            if (sas_is_event(ev)) {
+                ev$room_id <- rid
+                verification_events[[length(verification_events) + 1L]] <- ev
+                next
+            }
             if (!isTRUE(ev$type == "m.room.encrypted") ||
                 !isTRUE(ev$content$algorithm == MX_MEGOLM)) {
                 next
@@ -444,7 +462,12 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
             }
             dec <- tryCatch(mx_crypto_decrypt_event(entry$session, ev$content),
                             error = function(e) NULL)
-            if (is.null(dec)) {
+            if (!is.list(dec) || !is.list(dec$content)) {
+                next
+            }
+            if (!identical(dec$room_id, rid)) {
+                warning("mx.client: dropping encrypted event for a different room",
+                    call. = FALSE)
                 next
             }
             # The session was handed to us over Olm by whoever claimed the
@@ -468,6 +491,27 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
                 verified <- isTRUE(entry$sender_bound)
             }
             ct <- dec$content
+            if (sas_is_event(dec)) {
+                # Some clients move the relation entirely outside the ciphertext.
+                # Restore it before routing and commitment canonicalization.
+                outer_relation <- ev$content$`m.relates_to`
+                inner_relation <- ct$`m.relates_to`
+                if (!is.null(outer_relation) && !is.null(inner_relation) &&
+                    !isTRUE(tryCatch(identical(
+                        mx.api::mx_canonical_json(outer_relation),
+                        mx.api::mx_canonical_json(inner_relation)),
+                        error = function(e) FALSE))) {
+                    warning("mx.client: dropping verification with conflicting relations",
+                        call. = FALSE)
+                    next
+                }
+                if (is.null(inner_relation)) ct$`m.relates_to` <- outer_relation
+                verification_events[[length(verification_events) + 1L]] <- list(
+                    room_id = rid, event_id = ev$event_id, sender = ev$sender,
+                    origin_server_ts = ev$origin_server_ts,
+                    type = dec$type, content = ct, sender_verified = verified)
+                next
+            }
             events[[length(events) + 1L]] <- list(
                 room_id = rid,
                 event_id = ev$event_id,
@@ -487,6 +531,7 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
         function(request) !isTRUE(request$sent), sessions$key_requests))
 
     list(events = events, sessions = sessions,
+         verification_events = verification_events,
          key_requests = key_requests,
          key_request_cancellations = cancellations,
          incoming_key_requests = incoming_requests)

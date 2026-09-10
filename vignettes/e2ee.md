@@ -37,14 +37,17 @@ Read this first; it frames what the rest of the vignette delivers.
   This cannot recover another user's historical outbound session, and
   decrypted history from a forwarded key never reports its original sender as
   verified.
-- **No SAS (emoji) verification.**
+- **Interactive SAS verification.** With mx.crypto >= 0.2.1.2, an explicit
+  human comparison and valid MACs authenticate a fixed snapshot of both
+  device and master keys. Trust signatures are uploaded and checked only
+  after those requirements pass. QR verification is not implemented.
 - **Local-key storage.** Ratchet state is pickled with a locally stored
   32-byte key (file mode 0600). That guards against casual inspection;
   it is only as strong as access to the local filesystem. No passphrase
   or hardware backing.
 
-This matches what bots and controlled deployments need. For human-grade
-verification flows, watch the `mx.crypto` roadmap.
+The console procedure below uses the same Matrix verification messages as
+other clients. It does not require access to their private databases.
 
 ## The pieces
 
@@ -115,6 +118,211 @@ skipped on rerun.
 Cross-signed is not the same as trusted. Another client must independently
 verify the master identity before treating its signature chain as belonging to
 the expected person.
+
+## Interactive SAS verification
+
+Requires mx.client >= 0.2.0.10 and mx.crypto >= 0.2.1.2. Older crypto builds
+can still perform existing E2EE operations, but the SAS entry points refuse
+with an upgrade message. The handshake negotiates `m.sas.v1`,
+`curve25519-hkdf-sha256`, `sha256`, and `hkdf-hmac-sha256.v2`. It supports
+in-room and to-device requests, emoji and decimal displays, cancellation,
+timeouts, simultaneous starts, commitment checks, and both device/master MACs.
+
+For a bot, stop the service that owns its Matrix device. Open an interactive
+R console on that host, load its exact existing config and crypto store,
+and run:
+
+```r
+client <- mx_client_load(path = config_path)
+result <- mx_verify_console(client, existing_crypto_store,
+    "@peer:example.org", "!room:example.org", exclusive = TRUE)
+```
+
+`config_path` and `existing_crypto_store` are paths supplied by the operator,
+not new stores. Cross-signing must already be bootstrapped for this identity.
+The function refuses missing stores or mismatched local/published keys. It
+does not create accounts, reset keys, change room membership, or read a
+FluffyChat database. The other user's app can run on another computer; an
+SSH terminal is sufficient for the R side. That app owns its own signing
+keys and may ask its user to unlock them through its normal interface.
+
+In the peer's app, choose **Start verification**. Accept in R, compare all
+7 emoji (with labels) or all 3 numbers against the app, and explicitly
+confirm in both interfaces. Empty input is rejection. Compare in person,
+on your own two screens, or over a trusted independent channel. Never put
+the comparison in the Matrix conversation being verified. An LLM must not
+supply the confirmation. A peer that authenticates only its device key,
+without its master key, is refused for cross-user verification. For another
+device of this same account, its device MAC is sufficient: this account
+already has a trusted local master and signs the newly authenticated device.
+Some clients omit their own master proof until that identity is locally
+verified. If the console reports `cancel_detail = "peer_master_missing"`,
+restore or verify the existing identity through that client's normal recovery
+interface before retrying. Matching emoji alone do not authenticate an omitted
+master key. Never accept an unproven master or reset an identity implicitly.
+An owner-approved identity replacement is a separate recovery decision,
+described below.
+
+After the call returns, inspect `result$status`. `local_trust_recorded`
+means this account's signature was confirmed by read-back. `peer_done`
+means the other client acknowledged completion; it is not a read-back of
+the other user's private user-signing key. A cancelled or timed-out flow
+can still have recorded local trust if cancellation happened after that
+upload. Report that partial state, then recheck before repeating. Interrupted
+ephemeral handshakes cannot be restored; start a new verification request.
+Each console attempt reloads its saved config so a reused R client object
+cannot rewind the cursor to an earlier attempt. Changed server, user, or
+device identities are refused before network or crypto-store operations.
+
+Restart the bot only after the console returns. `exclusive = TRUE` asserts
+that you stopped other consumers; it is not a process lock. The console
+advances the same cursor after saving crypto state. Ordinary messages read
+during the session are passed to `on_messages` and returned in
+`result$messages`. The default reports counts rather than interleaving
+untrusted chat text with the verification prompts. A paused bot will not
+automatically process those messages. This is a temporary console takeover,
+not an always-on bot verification UI.
+
+### Peer identity recovery in FluffyChat
+
+These steps describe the FluffyChat 2.9.1 interface with Matrix Dart SDK
+10.2.0. Labels and recovery behavior may differ in other builds.
+
+Start in the correct account and room. In a multi-account app, close any open
+recovery page, select the intended account, and confirm its full Matrix ID in
+Settings before reopening **Chat backup**. Keep that account selected through
+any authentication prompt. FluffyChat exposes **Start verification** in an
+encrypted direct chat; a room with 2 members is not necessarily marked as a
+direct chat. Use the existing DM with the peer. Do not create a new room or
+enable encryption merely to make a missing button appear.
+
+The app displays several independent states:
+
+| Display | What it establishes |
+|---|---|
+| Signed or verified device | Trust in that device's keys, not necessarily recovery of the account's signing keys. |
+| Verified account identity | Trust in the account's master key. Cross-user SAS authenticates this key as well as the device. |
+| Known since | When the identity was first seen, not independent authentication. |
+| Encrypted room | Encryption is enabled; a readable new message and reply are separate delivery checks. |
+
+**Restore Crypto Identity** means required recovery secrets are unavailable
+locally. It can reflect a missing backup secret even when some signing keys
+are present. It does not prove all keys are lost. First use the existing
+recovery key or passphrase, or another device that still has the identity.
+If automatic verification does not appear, inspect **Settings → Devices**
+and start verification with the specific other device. A verified-device
+badge does not prevent that action. Compare and confirm on both screens.
+Skipping a recovery prompt may permit device-only verification; it does not
+recreate missing signing keys. Device names need not identify a unique host,
+and an old **Last active** timestamp alone does not prove a device is unused.
+
+If no recovery route works, the account owner may separately authorize a
+new crypto identity after accepting the history and trust consequences.
+In the interface above, the route is **Settings → Chat backup → Restore
+Crypto Identity → Reset account**, followed by the crypto-identity reset
+screen. Confirm that it is the crypto identity being reset, not account
+deletion. This replaces the cross-signing keys, secret storage, and backup
+version. It preserves the current login, device, and locally held room keys;
+existing local room keys are queued for the new backup. History whose keys
+exist only in an inaccessible old backup may remain unreadable. Do not use
+**Export session and wipe device** for this procedure.
+
+| Credential | Purpose |
+|---|---|
+| Matrix account login password | Authorizes publishing replacement identity keys when the server asks for password authentication. |
+| Crypto recovery key or backup passphrase | Opens the account's encrypted secret storage. Save the new recovery material securely after a reset. |
+| Computer or desktop keyring password | Opens local operating-system storage; it is not the Matrix login password. |
+
+Keep these credentials local. Do not paste them into chat or a task record.
+Reset only the selected account, once. Other sessions of that account should
+restore the new identity using the new recovery material, not reset it again.
+Another account in the same app must remain untouched. Existing sessions may
+continue reading encrypted conversations without logging in again; that
+does not establish that they have recovered the new signing keys.
+
+After the peer's identity is ready, use a fresh verification request in the
+R console. Load the intended package builds and retain the existing config,
+device, and store. Do not rewind sync or delete state after a cancellation.
+After matching and confirming on both screens, inspect:
+
+```r
+result$status[c("phase", "local_trust_recorded", "peer_done")]
+# Expected completion: phase "done", local_trust_recorded TRUE, peer_done TRUE.
+```
+
+This confirms local trust read-back and the peer's completion acknowledgement,
+not independent inspection of the peer's private signing state. End the
+console takeover before restarting the bot, then send a new normal message
+and confirm a readable reply. That tests live delivery separately from SAS.
+Messages consumed during console verification are in `result$messages` and
+will not automatically replay to the bot.
+
+### Integrating an existing event loop
+
+`mx_crypto_process_sync()` returns original verification envelopes in
+`verification_events`, separate from normalized chat messages. Save its
+account/session state and cursor before any verification transport or trust
+upload. Create a transaction with `mx_sas_from_request()` and pass further
+events to `mx_sas_receive()`. `mx_sas_outgoing()` exposes a stable outbox;
+acknowledge each id only after a successful send. In encrypted rooms retain
+the original event type using `event_type` in the encryption helpers, and
+carry `m.relates_to` outside the ciphertext too.
+
+`mx_sas_console(sas, receive, send, complete)` supplies the trusted human
+prompts around those hooks. `receive` must use the application's existing
+consumer; do not add a second `/sync` reader. `complete` calls
+`mx_sas_record_trust()` only after explicit comparison and peer MAC checks.
+Keep a transaction in memory, expire stale transactions, and cancel multiple
+simultaneous requests from the same peer. SAS success does not change
+forwarded-key admission or make missing historical room keys available.
+
+## Mutual verification from an R console
+
+With mx.client 0.2.0.10, two existing identities can verify each other without
+an emoji exchange. Authenticate each full master public key through a trusted
+independent channel, such as the other account's locally controlled console.
+Do not copy the key from `/keys/query` and pass it back as its own proof.
+The [Matrix cross-signing specification](https://spec.matrix.org/latest/client-server-api/#cross-signing)
+defines user-to-user trust as a user-signing signature on the other master.
+
+The following assumes `alice` and `bob` are existing client configs, their
+stores already contain the matching private cross-signing keys, and
+`alice_pin` and `bob_pin` have been authenticated independently. It does not
+log in, generate identities, or recover another application's private keys.
+
+```r
+# Preflight both sides before making either trust change.
+a <- mx_crypto_user_trust(alice, alice_store, bob$user_id, bob_pin)
+b <- mx_crypto_user_trust(bob, bob_store, alice$user_id, alice_pin)
+
+# Each account signs separately with its own existing user-signing key.
+mx_crypto_verify_user(alice, alice_store, bob$user_id, bob_pin)
+mx_crypto_verify_user(bob, bob_store, alice$user_id, alice_pin)
+
+a <- mx_crypto_user_trust(alice, alice_store, bob$user_id, bob_pin)
+b <- mx_crypto_user_trust(bob, bob_store, alice$user_id, alice_pin)
+stopifnot(isTRUE(a$verified), isTRUE(b$verified))
+```
+
+The check is read-only. The verifier uploads only a missing or invalid public
+signature, then verifies its read-back; it never saves ratchet state, runs
+`/sync`, or changes the local identity. The two uploads are not atomic: if the
+second fails, the first can remain recorded. Recheck both sides and rerun
+with the same independently authenticated pins. A replaced identity requires
+a new explicit authentication decision, not an automatic re-pin.
+
+If one account belongs to another client, unlock and use that client's
+existing signing keys through a supported path. A password or access token
+alone cannot supply its private user-signing key. Do not reset its identity
+or send its recovery key through chat to complete this procedure.
+
+`mx_crypto_known_devices(..., self_master_key = alice_pin)` reports
+`identity_verified` only when a device's self-signing chain reaches a master
+authenticated by Alice's pin and trust signature. Unsigned devices remain
+unverified even when their account's master is trusted. This field does not
+change the existing recipient policy, `sender_verified` device-binding
+semantics, or same-user-only forwarded-room-key admission. No SAS transaction
+is completed, so an already-open interactive verification dialog is separate.
 
 ## Sending
 

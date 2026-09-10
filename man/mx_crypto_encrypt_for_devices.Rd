@@ -11,7 +11,8 @@ mx_crypto_encrypt_for_devices(
   sender_curve25519,
   device_id,
   recipients = list(),
-  sender_user_id = NULL
+  sender_user_id = NULL,
+  event_type = "m.room.message"
 )
 }
 \arguments{
@@ -35,6 +36,8 @@ exactly this shape for devices whose keys verified.}
 
 \item{sender_user_id}{Character. This user's Matrix id. Required to
 build a spec-conformant Olm payload that the recipient can attribute.}
+
+\item{event_type}{Inner Matrix event type, defaulting to m.room.message.}
 }
 \value{
 List with \code{to_device} (per-device payloads), \code{event}

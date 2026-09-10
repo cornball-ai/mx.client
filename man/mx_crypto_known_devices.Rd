@@ -26,7 +26,12 @@ checked for internal consistency only.}
 }
 \value{
 List of verified devices, each \code{list(user_id, device_id,
-  curve25519, ed25519, cross_signed, master_key)}. \code{master_key} is
+  curve25519, ed25519, cross_signed, master_key, identity_verified)}.
+  \code{identity_verified} additionally requires the locally pinned master
+  for this user, or its authenticated user-signing signature on another
+  user's master, followed by that user's self-signing/device chain. This
+  metadata does not change recipient policy or the existing device-level
+  meaning of \code{sender_verified}. \code{master_key} is
   the server-reported key from a valid chain, even if it fails the pin.
 }
 \description{
