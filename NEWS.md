@@ -1,3 +1,29 @@
+# mx.client 0.2.0.10
+
+* Add standard interactive Matrix SAS verification, including emoji/decimal
+  comparison, modern key agreement and MACs, cancellation, timeouts, stable
+  outboxes, pinned key snapshots, and read-back-confirmed trust uploads.
+  SAS requires the optional mx.crypto >= 0.2.1.2; older E2EE paths retain
+  their existing dependency requirements.
+* Add `mx_verify_console()` for explicit, exclusive console ownership of an
+  existing device and store, plus event-loop hooks without a second sync reader.
+  Retries reload the saved cursor and credentials and reject identity changes.
+  Explain valid device-only proofs that omit the peer master, while retaining
+  the master-key authentication requirement for cross-user identity trust.
+* Preserve verification event types and relations through encryption and expose
+  original `verification_events` separately from normalized chat messages.
+  Restore outer-only relations used by other clients and reject conflicting
+  relations or encrypted payloads naming a different room.
+* Add pinned, directional user verification from R with existing cross-signing
+  keys. Signature uploads are idempotent and confirmed by read-back; checking
+  trust never initializes a store or mutates encryption sessions.
+* Expose `identity_verified` on device queries separately from device signature
+  validity. User-to-user trust requires a signature rooted in the caller's
+  pinned master. Recipient and forwarded-key admission policies are unchanged.
+* Document interactive verification, peer identity recovery in a multi-account
+  client, the procedural two-account alternative, and missed-room-key recovery.
+  Distinguish identity trust, device signatures, and live message delivery.
+
 # mx.client 0.2.0.9
 
 ## Fixes
