@@ -70,10 +70,9 @@ mx_crypto_random_bytes <- function(n) {
 #' Unpickles \code{account.pickle} from the store, or mints a fresh
 #' account and persists it. The account holds the device's long-lived
 #' Curve25519/Ed25519 identity keys.
-#' Legacy raw pickles remain readable. New saves use a version-1 JSON
-#' envelope around the encrypted pickle; unknown versions are rejected.
-#' Loading does not migrate the file. Clients older than 0.2.0.11 cannot
-#' read the new envelope, so back up the store before upgrading or downgrading.
+#' Reads raw pickles and version-1 JSON envelopes; unknown envelope versions
+#' are rejected. Loading never rewrites the file, and saving continues to
+#' write raw encrypted pickles for compatibility with older clients.
 #'
 #' @param store_dir Character. Crypto store directory.
 #' @return An mx.crypto account handle.
@@ -102,8 +101,8 @@ mx_crypto_account <- function(store_dir) {
 
 #' Persist an Olm account to the store
 #'
-#' Writes a version-1 JSON envelope containing the encrypted account pickle.
-#' The encryption key and device identity are unchanged.
+#' Writes the raw encrypted account pickle, preserving compatibility with
+#' older clients. The encryption key and device identity are unchanged.
 #'
 #' @param account An mx.crypto account handle.
 #' @param store_dir Character. Crypto store directory.
@@ -123,9 +122,7 @@ mx_crypto_account_save <- function(account, store_dir) {
     dir.create(store_dir, showWarnings = FALSE, recursive = TRUE)
     key <- mx_crypto_key(store_dir)
     pfile <- file.path(store_dir, "account.pickle")
-    blob <- list(version = 1L,
-                 pickle = mx.crypto::mxc_account_pickle(account, key))
-    writeLines(jsonlite::toJSON(blob, auto_unbox = TRUE), pfile)
+    writeLines(mx.crypto::mxc_account_pickle(account, key), pfile)
     Sys.chmod(pfile, mode = "0600")
     invisible(pfile)
 }

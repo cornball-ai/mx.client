@@ -2,8 +2,8 @@ library(tinytest)
 library(mx.client)
 
 if (!requireNamespace("mx.crypto", quietly = TRUE) ||
-    utils::packageVersion("mx.crypto") < "0.2.1.2") {
-    exit_file("mx.crypto >= 0.2.1.2 required")
+    utils::packageVersion("mx.crypto") < "0.2.2") {
+    exit_file("mx.crypto >= 0.2.2 required")
 }
 
 local({
@@ -20,13 +20,32 @@ local({
     account <- mx_crypto_account(store)
     identity <- mx.crypto::mxc_account_identity_keys(account)
     account_path <- file.path(store, "account.pickle")
-    account_blob <- read_blob(account_path)
-    expect_identical(account_blob$version, 1L)
+    key <- mx.client:::mx_crypto_key(store)
+    read_raw <- function() {
+        pickle <- paste(readLines(account_path), collapse = "")
+        expect_false(startsWith(trimws(pickle), "{"))
+        # Same decode path used by older mx.client versions.
+        mx.crypto::mxc_account_unpickle(pickle, key)
+    }
+    expect_identical(mx.crypto::mxc_account_identity_keys(read_raw()), identity)
     expect_identical(mx.crypto::mxc_account_identity_keys(
         mx_crypto_account(store)), identity)
 
-    # Legacy base64 is read as-is and becomes versioned only on save.
-    key <- mx.client:::mx_crypto_key(store)
+    # The API returns a named map; ordering is not part of the key identity.
+    read_otks <- function(account) {
+        keys <- mx.crypto::mxc_account_one_time_keys(account)
+        keys[sort(names(keys))]
+    }
+    # One-time-key replenishment must not change the account's file format.
+    mx.crypto::mxc_account_generate_one_time_keys(account, 2L)
+    one_time_keys <- read_otks(account)
+    expect_identical(length(one_time_keys), 2L)
+    mx_crypto_account_save(account, store)
+    loaded <- read_raw()
+    expect_identical(mx.crypto::mxc_account_identity_keys(loaded), identity)
+    expect_identical(read_otks(loaded), one_time_keys)
+
+    # Raw base64 remains raw on save, and loading never rewrites it.
     legacy <- mx.crypto::mxc_account_pickle(account, key)
     writeLines(legacy, account_path)
     before <- tools::md5sum(account_path)
@@ -34,9 +53,20 @@ local({
     expect_identical(mx.crypto::mxc_account_identity_keys(loaded), identity)
     expect_identical(tools::md5sum(account_path), before)
     mx_crypto_account_save(loaded, store)
-    expect_identical(read_blob(account_path)$version, 1L)
-    expect_identical(mx.crypto::mxc_account_identity_keys(
-        mx_crypto_account(store)), identity)
+    expect_identical(mx.crypto::mxc_account_identity_keys(read_raw()), identity)
+
+    # Explicit envelopes still load without rewriting. A later save writes raw.
+    account_blob <- list(version = 1L, pickle = legacy)
+    write_blob(account_blob, account_path)
+    before <- tools::md5sum(account_path)
+    loaded <- mx_crypto_account(store)
+    expect_identical(mx.crypto::mxc_account_identity_keys(loaded), identity)
+    expect_identical(tools::md5sum(account_path), before)
+    mx_crypto_account_save(loaded, store)
+    loaded <- read_raw()
+    expect_identical(mx.crypto::mxc_account_identity_keys(loaded), identity)
+    expect_identical(read_otks(loaded), one_time_keys)
+    write_blob(account_blob, account_path)
 
     # A real Megolm session and pending request survive both formats.
     sessions <- mx_crypto_sessions_new()
@@ -90,6 +120,9 @@ local({
             write_blob(blob, paths[[i]])
             before <- tools::md5sum(paths)
             expect_error(loaders[[i]](store), "schema version")
+            error <- tryCatch(loaders[[i]](store), error = function(e) e)
+            expect_true(grepl(paths[[i]], conditionMessage(error),
+                fixed = TRUE))
             expect_identical(tools::md5sum(paths), before)
         }
         write_blob(blobs[[i]], paths[[i]])
@@ -106,6 +139,8 @@ local({
     malformed <- list(version = 1L, pickle = list())
     write_blob(malformed, account_path)
     expect_error(mx_crypto_account(store), "expected an encrypted pickle")
+    error <- tryCatch(mx_crypto_account(store), error = function(e) e)
+    expect_true(grepl(account_path, conditionMessage(error), fixed = TRUE))
 
     # Unsupported versions are checked before any key file is created.
     missing_key <- file.path(store, "without-key")
