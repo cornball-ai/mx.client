@@ -1,4 +1,6 @@
-# mx.client 0.2.0.11
+# mx.client 0.2.1
+
+## Store compatibility and dependencies
 
 * Write schema version 1 in session stores and reject unknown or malformed
   versions in all 3 crypto-store loaders, reporting the full file path.
@@ -6,19 +8,18 @@
 * Keep writing account.pickle as a raw encrypted pickle so older clients
   can still open the store. Also accept version-1 JSON account envelopes
   without rewriting them on load; envelope writes are deferred.
-* Raise the optional mx.crypto dependency floor from 0.2.1.1 to the released
+* Raise the optional mx.crypto dependency floor from 0.2.0 to the released
   0.2.2, which contains the SAS APIs already required at runtime. CI pins
   the mx.crypto 0.2.2 source; no mx.crypto code changes are needed.
 * Limit the Unix file-permission assertion to Unix hosts, keeping the
   cross-signing cryptography tests active on Windows.
 
-# mx.client 0.2.0.10
+## Interactive verification and identity trust
 
 * Add standard interactive Matrix SAS verification, including emoji/decimal
   comparison, modern key agreement and MACs, cancellation, timeouts, stable
   outboxes, pinned key snapshots, and read-back-confirmed trust uploads.
-  SAS requires the optional mx.crypto >= 0.2.1.2; older E2EE paths retain
-  their existing dependency requirements.
+  Encryption and SAS use the optional mx.crypto >= 0.2.2.
 * Add `mx_verify_console()` for explicit, exclusive console ownership of an
   existing device and store, plus event-loop hooks without a second sync reader.
   Retries reload the saved cursor and credentials and reject identity changes.
@@ -38,9 +39,7 @@
   client, the procedural two-account alternative, and missed-room-key recovery.
   Distinguish identity trust, device signatures, and live message delivery.
 
-# mx.client 0.2.0.9
-
-## Fixes
+## Olm receive fixes
 
 * Receive Olm messages on locally initiated sessions as well as remotely
   initiated sessions. A peer's room-key reply can now install its Megolm
@@ -54,16 +53,16 @@
 * Session storage retains the existing two-map format. A unified per-peer
   session history is deferred; older sessions replaced in a map remain lost.
 
-# mx.client 0.2.0.8
+## Cross-signing and room-key recovery
 
-## Documentation
+### Documentation
 
 * Move the bundled skill to `inst/skills/matrix-messaging/`, installed at
   `system.file("skills", "matrix-messaging", package = "mx.client")`.
   The instruction body is unchanged; direct links to the old nested
   `skills/mx.client/matrix-messaging` path need updating.
 
-## New
+### New
 
 * Missing Megolm sessions now create persistent `m.room_key_request`
   messages, deduplicate repeated requests, accept requested
@@ -84,7 +83,7 @@
 * Sent but unanswered room-key requests remain stored until recovery;
   automatic expiry/pruning is deferred to a follow-up.
 
-## Fixes
+### Fixes
 
 * Unsatisfied room-key requests now persist an explicit transport state and
   retry with the same request id until successfully sent.
@@ -97,9 +96,7 @@
 * Rerunning cross-signing bootstrap skips valid signatures already on the
   server. New request ids use integer milliseconds and one random suffix.
 
-# mx.client 0.2.0.7
-
-## Fixes
+## Media extraction fix
 
 - `mx_extract_media_events()` threw "$ operator is invalid for atomic
   vectors" on a cleartext image whose content carried a `filename` --
@@ -110,9 +107,7 @@
   would also have reported that picture as `encrypted`. Every content
   field is read with `[[` now.
 
-# mx.client 0.2.0.6
-
-## New
+## Media event records
 
 * `mx_extract_media_events()` returns the media messages
   `mx_extract_text_events()` filters out: images, files, audio, and
@@ -122,9 +117,7 @@
   consumer can tell an encrypted attachment from a cleartext one and
   fetch either.
 
-# mx.client 0.2.0.5
-
-## New
+## Threaded messages
 
 * `mx_send_text(thread =)` sends into a Matrix thread. Given a root
   event id it attaches `m.relates_to` with `rel_type` `m.thread`, plus
@@ -133,9 +126,7 @@
   instead of as loose chatter. `mx_extract_text_events()` has carried
   the inbound `relates_to` since 0.2.0.4, so the round trip now closes.
 
-# mx.client 0.2.0.4
-
-## New
+## Invite records
 
 * `mx_extract_invite_records()` reports pending invites with the member
   who sent each one, as `list(room_id, inviter)`. `mx_extract_invites()`
@@ -152,9 +143,7 @@
   No timestamp: stripped state has no reliable `origin_server_ts`, and an
   invite is a standing state rather than an event at a moment.
 
-# mx.client 0.2.0.3
-
-## New
+## Reactions and relations
 
 * `mx_extract_reactions()` returns every `m.reaction` in a sync as a
   record carrying `room_id`, `event_id` (the reaction, not its target),
@@ -170,9 +159,7 @@
   reply from a rich reply from an edit, and dropping it left every caller
   unable to tell any of them from an ordinary message.
 
-# mx.client 0.2.0.2
-
-## Security
+## Encrypted-send security fixes
 
 * **HIGH**: `mx_send_encrypted()` filtered its own device by `device_id`
   alone. Matrix device ids are scoped to a user, not globally unique, so
@@ -206,6 +193,12 @@
   under it, and `mx_send_encrypted()` asks for strict, because
   encrypting to a user whose devices could not be listed is how a
   message ends up readable by nobody.
+
+## Documentation
+
+* Add examples for all SAS and cross-signing helpers, including a synthetic
+  in-memory SAS exchange, explicit refusal paths, and an interactive-client
+  bootstrap example. Encrypt/decrypt examples now run without a homeserver.
 
 # mx.client 0.2.0
 
