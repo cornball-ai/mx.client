@@ -1,3 +1,16 @@
+# mx.client 0.2.0.11
+
+* Write schema version 1 in session stores and account-pickle JSON envelopes;
+  reject unknown or malformed versions in all 3 crypto-store loaders.
+  Legacy unversioned sessions and raw account pickles remain readable and
+  migrate only on save. Older clients cannot read the new account envelope;
+  retain a pre-upgrade store backup for rollback.
+* Raise the optional mx.crypto dependency floor from 0.2.1.1 to 0.2.1.2,
+  matching the SAS APIs already required at runtime. CI pins the released
+  mx.crypto 0.2.2 source; no mx.crypto code changes are needed.
+* Limit the Unix file-permission assertion to Unix hosts, keeping the
+  cross-signing cryptography tests active on Windows.
+
 # mx.client 0.2.0.10
 
 * Add standard interactive Matrix SAS verification, including emoji/decimal
