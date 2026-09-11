@@ -42,6 +42,13 @@ mx_crypto_cross_signing_save <- function(keys, store_dir) {
 #' @param store_dir Character. Crypto store directory.
 #' @return A list containing master, self-signing and user-signing key handles,
 #'   or NULL.
+#' @examples
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'     # A missing store returns NULL and does not create a replacement identity.
+#'     unused_store <- tempfile("unused-cross-signing-")
+#'     stopifnot(is.null(mx_crypto_cross_signing_load(unused_store)),
+#'         !file.exists(unused_store))
+#' }
 #' @export
 mx_crypto_cross_signing_load <- function(store_dir) {
     mx_require_crypto()
@@ -218,6 +225,19 @@ mx_crypto_upload_cross_signing <- function(client, objects, password = NULL,
 #' @param password Character or NULL. Account password used only for UIA.
 #' @param auth Completed Matrix UIA object or NULL.
 #' @return Public master, self-signing and user-signing key ids, invisibly.
+#' @examples
+#' \dontrun{
+#' # Requires a live Matrix account and this device's existing crypto store.
+#' # Stop other processes using the device first. Never substitute a new store.
+#' client <- mx_client_load(path = Sys.getenv("MATRIX_CONFIG"))
+#' store <- Sys.getenv("MATRIX_CRYPTO_STORE")
+#' stopifnot(nzchar(store), file.exists(file.path(store, "account.pickle")))
+#' account <- mx_crypto_account(store)
+#' public <- mx_crypto_cross_signing_bootstrap(client, account, store,
+#'     password = Sys.getenv("MATRIX_ACCOUNT_PASSWORD"))
+#' # The encrypted private keys remain local; the return value contains key ids.
+#' public$master
+#' }
 #' @export
 mx_crypto_cross_signing_bootstrap <- function(client, device_account,
                                                store_dir, password = NULL,

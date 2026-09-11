@@ -50,6 +50,13 @@ sas_display <- function(bytes) {
 #' @return A list with identities, phase, comparison values, local confirmation,
 #'   peer MAC validity, local trust status, peer completion, and cancellation code.
 #'   cancel_detail identifies a locally diagnosed missing peer master proof.
+#' @examples
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'     example("mx_sas_session", package = "mx.client", echo = FALSE)
+#'     status <- mx_sas_status(alice)
+#'     stopifnot(identical(status$phase, "requested"),
+#'         !status$confirmed, !status$local_trust_recorded)
+#' }
 #' @export
 mx_sas_status <- function(sas) {
     sas_check(sas)

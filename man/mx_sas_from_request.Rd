@@ -22,3 +22,14 @@ Validates the request's age, recipient, device and method, then reads a
 fixed key snapshot. No sync, transport, new identity, or trust upload occurs.
 Requests are accepted only when the operator calls mx_sas_accept().
 }
+\examples{
+# Ordinary messages are ignored without reading a store or contacting a server.
+client <- mx_client_from_config(list(user_id = "@alice:example.org",
+    device_id = "ALICE"))
+event <- list(type = "m.room.message", sender = "@bob:example.org",
+    content = list(msgtype = "m.text", body = "Hello"))
+unused_store <- tempfile("unused-crypto-store-")
+stopifnot(is.null(mx_sas_from_request(client, unused_store, event)),
+    !file.exists(unused_store))
+# See mx_verify_console() for receiving real requests using an existing store.
+}

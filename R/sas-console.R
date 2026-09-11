@@ -31,6 +31,23 @@ sas_console_read <- function(prompt) {
 #' @param input Function taking a prompt. The default requires an interactive
 #'   console; replacement is intended for a trusted human UI or isolated tests.
 #' @return A status list, invisibly. Interrupts cancel and attempt notification.
+#' @examples
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'     example("mx_sas_session", package = "mx.client", echo = FALSE)
+#'     # Isolated refusal example. Real input must come from a trusted human UI.
+#'     sent <- new.env(parent = emptyenv())
+#'     sent$events <- list()
+#'     result <- mx_sas_console(bob,
+#'         receive = function() list(),
+#'         send = function(event) {
+#'             sent$events[[length(sent$events) + 1L]] <- event
+#'         },
+#'         complete = function(sas) stop("No trust should be recorded"),
+#'         input = function(prompt) "no")
+#'     stopifnot(identical(result$phase, "cancelled"),
+#'         !result$local_trust_recorded, length(sent$events) == 1L,
+#'         identical(sent$events[[1]]$type, "m.key.verification.cancel"))
+#' }
 #' @export
 mx_sas_console <- function(sas, receive, send, complete, input = sas_console_read) {
     sas_check(sas)

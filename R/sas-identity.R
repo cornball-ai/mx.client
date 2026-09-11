@@ -65,6 +65,16 @@ sas_identity <- function(client, store_dir, peer_user_id, peer_device_id) {
 #' @param event Original request envelope from the existing event consumer.
 #' @param now Current time.
 #' @return An in-memory SAS transaction, or NULL for an irrelevant/expired request.
+#' @examples
+#' # Ordinary messages are ignored without reading a store or contacting a server.
+#' client <- mx_client_from_config(list(user_id = "@alice:example.org",
+#'     device_id = "ALICE"))
+#' event <- list(type = "m.room.message", sender = "@bob:example.org",
+#'     content = list(msgtype = "m.text", body = "Hello"))
+#' unused_store <- tempfile("unused-crypto-store-")
+#' stopifnot(is.null(mx_sas_from_request(client, unused_store, event)),
+#'     !file.exists(unused_store))
+#' # See mx_verify_console() for receiving real requests using an existing store.
 #' @export
 mx_sas_from_request <- function(client, store_dir, event, now = Sys.time()) {
     if (length(now) != 1L || !is.finite(as.numeric(now))) {
@@ -107,6 +117,18 @@ mx_sas_from_request <- function(client, store_dir, event, now = Sys.time()) {
 #' @param store_dir This device's existing cross-signing store.
 #' @param now Current time.
 #' @return The transaction, invisibly. Errors leave completion retryable.
+#' @examples
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'     example("mx_sas_session", package = "mx.client", echo = FALSE)
+#'     client <- mx_client_from_config(list(user_id = "@alice:example.org",
+#'         device_id = "ALICE"))
+#'     unused_store <- tempfile("unused-crypto-store-")
+#'     # An unconfirmed exchange cannot grant trust or access the crypto store.
+#'     try(mx_sas_record_trust(alice, client, unused_store))
+#'     stopifnot(!mx_sas_status(alice)$local_trust_recorded,
+#'         !file.exists(unused_store))
+#' }
+#' # mx_verify_console() calls this after human confirmation and valid peer MACs.
 #' @export
 mx_sas_record_trust <- function(sas, client, store_dir, now = Sys.time()) {
     sas_check(sas)

@@ -51,6 +51,13 @@ mx_crypto_key_request_cancellation <- function(request) {
 #' @param sessions An E2EE session set.
 #' @param requests Request descriptors sent successfully.
 #' @return The updated session set.
+#' @examples
+#' sessions <- mx_crypto_sessions_new()
+#' request <- list(request_id = "example-request", sent = FALSE)
+#' sessions$key_requests[["example-session"]] <- request
+#' sessions <- mx_crypto_mark_key_requests_sent(sessions, list(request))
+#' stopifnot(isTRUE(sessions$key_requests[["example-session"]]$sent))
+#' # This only updates memory. The caller saves sessions after successful transport.
 #' @export
 mx_crypto_mark_key_requests_sent <- function(sessions, requests) {
     if (!length(requests)) return(sessions)

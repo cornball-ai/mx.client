@@ -18,3 +18,11 @@ Display codes only on the operator's trusted console, never in the Matrix
 conversation being verified. A verified SAS is distinct from a recorded
 local trust signature and from the peer's completion acknowledgement.
 }
+\examples{
+if (requireNamespace("mx.crypto", quietly = TRUE)) {
+    example("mx_sas_session", package = "mx.client", echo = FALSE)
+    status <- mx_sas_status(alice)
+    stopifnot(identical(status$phase, "requested"),
+        !status$confirmed, !status$local_trust_recorded)
+}
+}

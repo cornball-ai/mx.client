@@ -51,3 +51,22 @@ this function does not start sync, send messages, or record trust.
 Ephemeral state cannot be persisted. Restart interrupted transactions
 with a new request id and new session. Only modern SAS algorithms are used.
 }
+\examples{
+if (requireNamespace("mx.crypto", quietly = TRUE)) {
+    # Synthetic identities for a local example: no server or store is used.
+    make_keys <- function(device) {
+        public <- replicate(2, mx.crypto::mxc_signing_key_public(
+            mx.crypto::mxc_signing_key_new()))
+        stats::setNames(as.list(public),
+            paste0("ed25519:", c(device, public[2])))
+    }
+    alice_keys <- make_keys("ALICE")
+    bob_keys <- make_keys("BOB")
+    alice <- mx_sas_session("@alice:example.org", "ALICE", alice_keys,
+        "@bob:example.org", "BOB", bob_keys, "example-request",
+        initiator = TRUE)
+    bob <- mx_sas_session("@bob:example.org", "BOB", bob_keys,
+        "@alice:example.org", "ALICE", alice_keys, "example-request")
+    stopifnot(identical(mx_sas_status(alice)$phase, "requested"))
+}
+}

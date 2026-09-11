@@ -405,9 +405,14 @@ mx_crypto_inbound_session <- function(session_key) {
 #'   verification replies use their m.key.verification.* event type.
 #' @return A named list: \code{m.room.encrypted} content.
 #' @examples
-#' \dontrun{
-#' enc <- mx_crypto_encrypt_event(megolm_out,
-#'   list(msgtype = "m.text", body = "hi"), "!room:ex", my_curve, "DEV")
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'     account <- mx.crypto::mxc_account_new()
+#'     sender <- mx.crypto::mxc_account_identity_keys(account)$curve25519
+#'     megolm_out <- mx.crypto::mxc_megolm_outbound_new()
+#'     enc <- mx_crypto_encrypt_event(megolm_out,
+#'         list(msgtype = "m.text", body = "Hello"),
+#'         "!room:example.org", sender, "ALICE")
+#'     stopifnot(identical(enc$algorithm, "m.megolm.v1.aes-sha2"))
 #' }
 #' @export
 mx_crypto_encrypt_event <- function(megolm_out, content, room_id,
@@ -441,9 +446,17 @@ mx_crypto_encrypt_event <- function(megolm_out, content, room_id,
 #' @param encrypted The \code{m.room.encrypted} event content.
 #' @return The decrypted event payload (a parsed list).
 #' @examples
-#' \dontrun{
-#' ev <- mx_crypto_decrypt_event(inb, encrypted_content)
-#' ev$content$body
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'     account <- mx.crypto::mxc_account_new()
+#'     sender <- mx.crypto::mxc_account_identity_keys(account)$curve25519
+#'     megolm_out <- mx.crypto::mxc_megolm_outbound_new()
+#'     key <- mx.crypto::mxc_megolm_outbound_info(megolm_out)$session_key
+#'     inb <- mx_crypto_inbound_session(key)
+#'     enc <- mx_crypto_encrypt_event(megolm_out,
+#'         list(msgtype = "m.text", body = "Hello"),
+#'         "!room:example.org", sender, "ALICE")
+#'     ev <- mx_crypto_decrypt_event(inb, enc)
+#'     stopifnot(identical(ev$content$body, "Hello"))
 #' }
 #' @export
 mx_crypto_decrypt_event <- function(inbound_session, encrypted) {

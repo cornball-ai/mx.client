@@ -23,3 +23,29 @@ not repeat operations; conflicting repeats cancel. NULL checks timeouts.
 Feed decrypted original event type and content, not flattened chat text.
 No transport or persistent trust operation occurs here.
 }
+\examples{
+if (requireNamespace("mx.crypto", quietly = TRUE)) {
+    example("mx_sas_session", package = "mx.client", echo = FALSE)
+    # Deliver queued envelopes between the two synthetic, in-memory peers.
+    relay <- function(from, to) {
+        for (item in mx_sas_outgoing(from)) {
+            mx_sas_receive(to, list(type = item$type, content = item$content,
+                sender = mx_sas_status(from)$user_id, room_id = item$room_id))
+            mx_sas_outgoing(from, acknowledge = item$id)
+        }
+    }
+    mx_sas_accept(bob)
+    for (i in seq_len(3)) {
+        relay(bob, alice)
+        relay(alice, bob)
+    }
+    alice_status <- mx_sas_status(alice)
+    bob_status <- mx_sas_status(bob)
+    stopifnot(identical(alice_status$phase, "sas"),
+        identical(bob_status$phase, "sas"),
+        length(alice_status$decimal) == 3L,
+        identical(alice_status$decimal, bob_status$decimal),
+        !alice_status$confirmed, !alice_status$local_trust_recorded)
+    # A real exchange still requires a human comparison on trusted displays.
+}
+}

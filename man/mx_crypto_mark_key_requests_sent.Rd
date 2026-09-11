@@ -18,3 +18,11 @@ Updates durable request records after transport succeeds. Requests remain
 queued until marked, allowing a failed send to retry on a later poll even
 after the original encrypted event has left the sync timeline.
 }
+\examples{
+sessions <- mx_crypto_sessions_new()
+request <- list(request_id = "example-request", sent = FALSE)
+sessions$key_requests[["example-session"]] <- request
+sessions <- mx_crypto_mark_key_requests_sent(sessions, list(request))
+stopifnot(isTRUE(sessions$key_requests[["example-session"]]$sent))
+# This only updates memory. The caller saves sessions after successful transport.
+}

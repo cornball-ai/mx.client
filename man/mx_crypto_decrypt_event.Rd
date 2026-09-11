@@ -18,8 +18,16 @@ The decrypted event payload (a parsed list).
 Decrypt an m.room.encrypted event (Megolm)
 }
 \examples{
-\dontrun{
-ev <- mx_crypto_decrypt_event(inb, encrypted_content)
-ev$content$body
+if (requireNamespace("mx.crypto", quietly = TRUE)) {
+    account <- mx.crypto::mxc_account_new()
+    sender <- mx.crypto::mxc_account_identity_keys(account)$curve25519
+    megolm_out <- mx.crypto::mxc_megolm_outbound_new()
+    key <- mx.crypto::mxc_megolm_outbound_info(megolm_out)$session_key
+    inb <- mx_crypto_inbound_session(key)
+    enc <- mx_crypto_encrypt_event(megolm_out,
+        list(msgtype = "m.text", body = "Hello"),
+        "!room:example.org", sender, "ALICE")
+    ev <- mx_crypto_decrypt_event(inb, enc)
+    stopifnot(identical(ev$content$body, "Hello"))
 }
 }

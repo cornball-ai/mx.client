@@ -34,8 +34,13 @@ A named list: \code{m.room.encrypted} content.
 Returns the \code{m.room.encrypted} content to send as the event body.
 }
 \examples{
-\dontrun{
-enc <- mx_crypto_encrypt_event(megolm_out,
-  list(msgtype = "m.text", body = "hi"), "!room:ex", my_curve, "DEV")
+if (requireNamespace("mx.crypto", quietly = TRUE)) {
+    account <- mx.crypto::mxc_account_new()
+    sender <- mx.crypto::mxc_account_identity_keys(account)$curve25519
+    megolm_out <- mx.crypto::mxc_megolm_outbound_new()
+    enc <- mx_crypto_encrypt_event(megolm_out,
+        list(msgtype = "m.text", body = "Hello"),
+        "!room:example.org", sender, "ALICE")
+    stopifnot(identical(enc$algorithm, "m.megolm.v1.aes-sha2"))
 }
 }

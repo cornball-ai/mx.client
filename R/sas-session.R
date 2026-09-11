@@ -94,6 +94,24 @@ sas_expire <- function(sas, now) {
 #' @param initiator TRUE if this device sent the initial request.
 #' @param now Current time. Injectable for deterministic timeout tests.
 #' @return An opaque in-memory transaction. Use mx_sas_status() for display.
+#' @examples
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'     # Synthetic identities for a local example: no server or store is used.
+#'     make_keys <- function(device) {
+#'         public <- replicate(2, mx.crypto::mxc_signing_key_public(
+#'             mx.crypto::mxc_signing_key_new()))
+#'         stats::setNames(as.list(public),
+#'             paste0("ed25519:", c(device, public[2])))
+#'     }
+#'     alice_keys <- make_keys("ALICE")
+#'     bob_keys <- make_keys("BOB")
+#'     alice <- mx_sas_session("@alice:example.org", "ALICE", alice_keys,
+#'         "@bob:example.org", "BOB", bob_keys, "example-request",
+#'         initiator = TRUE)
+#'     bob <- mx_sas_session("@bob:example.org", "BOB", bob_keys,
+#'         "@alice:example.org", "ALICE", alice_keys, "example-request")
+#'     stopifnot(identical(mx_sas_status(alice)$phase, "requested"))
+#' }
 #' @export
 mx_sas_session <- function(user_id, device_id, keys, peer_user_id,
     peer_device_id, peer_keys, transaction_id, room_id = NULL,
@@ -136,6 +154,12 @@ mx_sas_session <- function(user_id, device_id, keys, peer_user_id,
 #' @param sas An in-memory SAS transaction.
 #' @param now Current time.
 #' @return The transaction, invisibly. A ready event is queued, not sent.
+#' @examples
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'     example("mx_sas_session", package = "mx.client", echo = FALSE)
+#'     mx_sas_accept(bob)
+#'     stopifnot(identical(mx_sas_status(bob)$phase, "ready"))
+#' }
 #' @export
 mx_sas_accept <- function(sas, now = Sys.time()) {
     sas_check(sas)
@@ -153,6 +177,13 @@ mx_sas_accept <- function(sas, now = Sys.time()) {
 #' @param sas An in-memory SAS transaction in the ready phase.
 #' @param now Current time.
 #' @return The transaction, invisibly. A start event is queued, not sent.
+#' @examples
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'     example("mx_sas_session", package = "mx.client", echo = FALSE)
+#'     mx_sas_accept(bob)
+#'     mx_sas_start(bob)
+#'     stopifnot(identical(mx_sas_status(bob)$phase, "started"))
+#' }
 #' @export
 mx_sas_start <- function(sas, now = Sys.time()) {
     sas_check(sas)
@@ -177,6 +208,13 @@ mx_sas_start <- function(sas, now = Sys.time()) {
 #' @param sas An in-memory SAS transaction.
 #' @param code Matrix cancellation code.
 #' @return The transaction, invisibly. At most one cancellation is queued.
+#' @examples
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'     example("mx_sas_session", package = "mx.client", echo = FALSE)
+#'     mx_sas_cancel(bob)
+#'     stopifnot(identical(mx_sas_status(bob)$cancel_code, "m.user"),
+#'         !mx_sas_status(bob)$local_trust_recorded)
+#' }
 #' @export
 mx_sas_cancel <- function(sas, code = "m.user") {
     sas_check(sas)
@@ -199,6 +237,20 @@ mx_sas_cancel <- function(sas, code = "m.user") {
 #' @param acknowledge Character vector of successfully sent queue ids.
 #' @return A list of pending envelopes, containing type, content, destination,
 #'   and a stable transport id. No private key material is included.
+#' @examples
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'     example("mx_sas_session", package = "mx.client", echo = FALSE)
+#'     mx_sas_accept(bob)
+#'     pending <- mx_sas_outgoing(bob)
+#'     stopifnot(length(pending) == 1L,
+#'         identical(mx_sas_outgoing(bob), pending))
+#'     # Deliver locally, then acknowledge. Real transports acknowledge on success.
+#'     item <- pending[[1]]
+#'     mx_sas_receive(alice, list(sender = "@bob:example.org",
+#'         type = item$type, content = item$content))
+#'     mx_sas_outgoing(bob, acknowledge = item$id)
+#'     stopifnot(length(mx_sas_outgoing(bob)) == 0L)
+#' }
 #' @export
 mx_sas_outgoing <- function(sas, acknowledge = character()) {
     sas_check(sas)

@@ -33,3 +33,17 @@ identity. The current device signs the master key and the self-signing key
 signs the current device.
 Valid signatures already returned by the homeserver are not re-uploaded.
 }
+\examples{
+\dontrun{
+# Requires a live Matrix account and this device's existing crypto store.
+# Stop other processes using the device first. Never substitute a new store.
+client <- mx_client_load(path = Sys.getenv("MATRIX_CONFIG"))
+store <- Sys.getenv("MATRIX_CRYPTO_STORE")
+stopifnot(nzchar(store), file.exists(file.path(store, "account.pickle")))
+account <- mx_crypto_account(store)
+public <- mx_crypto_cross_signing_bootstrap(client, account, store,
+    password = Sys.getenv("MATRIX_ACCOUNT_PASSWORD"))
+# The encrypted private keys remain local; the return value contains key ids.
+public$master
+}
+}

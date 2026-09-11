@@ -16,3 +16,11 @@ The transaction, invisibly. A start event is queued, not sent.
 \description{
 Begin the SAS key agreement after request negotiation
 }
+\examples{
+if (requireNamespace("mx.crypto", quietly = TRUE)) {
+    example("mx_sas_session", package = "mx.client", echo = FALSE)
+    mx_sas_accept(bob)
+    mx_sas_start(bob)
+    stopifnot(identical(mx_sas_status(bob)$phase, "started"))
+}
+}

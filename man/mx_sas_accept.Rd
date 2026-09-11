@@ -16,3 +16,10 @@ The transaction, invisibly. A ready event is queued, not sent.
 \description{
 Accept an incoming SAS verification request
 }
+\examples{
+if (requireNamespace("mx.crypto", quietly = TRUE)) {
+    example("mx_sas_session", package = "mx.client", echo = FALSE)
+    mx_sas_accept(bob)
+    stopifnot(identical(mx_sas_status(bob)$phase, "ready"))
+}
+}

@@ -135,6 +135,31 @@ sas_receive_mac <- function(sas, content) {
 #'   room_id for in-room verification, or NULL.
 #' @param now Current time.
 #' @return The transaction, invisibly.
+#' @examples
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'     example("mx_sas_session", package = "mx.client", echo = FALSE)
+#'     # Deliver queued envelopes between the two synthetic, in-memory peers.
+#'     relay <- function(from, to) {
+#'         for (item in mx_sas_outgoing(from)) {
+#'             mx_sas_receive(to, list(type = item$type, content = item$content,
+#'                 sender = mx_sas_status(from)$user_id, room_id = item$room_id))
+#'             mx_sas_outgoing(from, acknowledge = item$id)
+#'         }
+#'     }
+#'     mx_sas_accept(bob)
+#'     for (i in seq_len(3)) {
+#'         relay(bob, alice)
+#'         relay(alice, bob)
+#'     }
+#'     alice_status <- mx_sas_status(alice)
+#'     bob_status <- mx_sas_status(bob)
+#'     stopifnot(identical(alice_status$phase, "sas"),
+#'         identical(bob_status$phase, "sas"),
+#'         length(alice_status$decimal) == 3L,
+#'         identical(alice_status$decimal, bob_status$decimal),
+#'         !alice_status$confirmed, !alice_status$local_trust_recorded)
+#'     # A real exchange still requires a human comparison on trusted displays.
+#' }
 #' @export
 mx_sas_receive <- function(sas, event = NULL, now = Sys.time()) {
     sas_check(sas)
@@ -209,6 +234,14 @@ mx_sas_receive <- function(sas, event = NULL, now = Sys.time()) {
 #' @param matches One explicit TRUE or FALSE, without a default.
 #' @param now Current time.
 #' @return The transaction, invisibly.
+#' @examples
+#' if (requireNamespace("mx.crypto", quietly = TRUE)) {
+#'     example("mx_sas_receive", package = "mx.client", echo = FALSE)
+#'     # Demonstrate declining the comparison. No identity trust is granted.
+#'     mx_sas_confirm(alice, matches = FALSE)
+#'     stopifnot(identical(mx_sas_status(alice)$cancel_code, "m.mismatched_sas"),
+#'         !mx_sas_status(alice)$local_trust_recorded)
+#' }
 #' @export
 mx_sas_confirm <- function(sas, matches, now = Sys.time()) {
     sas_check(sas)
