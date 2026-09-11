@@ -38,6 +38,7 @@ mx_crypto_sessions_new <- function() {
 #'
 #' Pickles every live session (encrypted at rest with the store key) into
 #' \code{sessions.json}. Reload with \code{mx_crypto_sessions_load()}.
+#' New files declare schema version 1; unversioned legacy files remain readable.
 #'
 #' @param sessions A session set.
 #' @param store_dir Character. Crypto store directory.
@@ -55,6 +56,7 @@ mx_crypto_sessions_save <- function(sessions, store_dir) {
     dir.create(store_dir, showWarnings = FALSE, recursive = TRUE)
     key <- mx_crypto_key(store_dir)
     blob <- list(
+                 version = 1L,
                  olm = lapply(sessions$olm, function(s) {
         mx.crypto::mxc_olm_session_pickle(s, key)
     }),
@@ -81,6 +83,9 @@ mx_crypto_sessions_save <- function(sessions, store_dir) {
 
 #' Load a session set from the crypto store
 #'
+#' Accepts version 1 and unversioned legacy stores. Unknown or malformed
+#' schema versions are rejected before unpickling, without rewriting the file.
+#'
 #' @param store_dir Character. Crypto store directory.
 #' @return A session set (empty if nothing is stored yet).
 #' @examples
@@ -96,10 +101,11 @@ mx_crypto_sessions_load <- function(store_dir) {
     if (!file.exists(path)) {
         return(mx_crypto_sessions_new())
     }
-    key <- mx_crypto_key(store_dir)
     blob <- jsonlite::fromJSON(paste(readLines(path, warn = FALSE),
                                      collapse = "\n"),
                                simplifyVector = FALSE)
+    crypto_store_version(blob, path, legacy = TRUE)
+    key <- mx_crypto_key(store_dir)
     out <- mx_crypto_sessions_new()
     for (nm in names(blob$olm %||% list())) {
         out$olm[[nm]] <- mx.crypto::mxc_olm_session_unpickle(blob$olm[[nm]], key)

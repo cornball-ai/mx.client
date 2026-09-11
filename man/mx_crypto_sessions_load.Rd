@@ -12,7 +12,8 @@ mx_crypto_sessions_load(store_dir)
 A session set (empty if nothing is stored yet).
 }
 \description{
-Load a session set from the crypto store
+Accepts version 1 and unversioned legacy stores. Unknown or malformed
+schema versions are rejected before unpickling, without rewriting the file.
 }
 \examples{
 \donttest{

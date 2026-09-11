@@ -27,7 +27,7 @@ Imports:
     tools,
     utils
 Suggests:
-    mx.crypto (>= 0.2.1.1),
+    mx.crypto (>= 0.2.1.2),
     simplermarkdown,
     tinytest
 VignetteBuilder: simplermarkdown
