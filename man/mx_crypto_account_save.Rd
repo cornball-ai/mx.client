@@ -14,8 +14,8 @@ mx_crypto_account_save(account, store_dir)
 The pickle path, invisibly.
 }
 \description{
-Writes a version-1 JSON envelope containing the encrypted account pickle.
-The encryption key and device identity are unchanged.
+Writes the raw encrypted account pickle, preserving compatibility with
+older clients. The encryption key and device identity are unchanged.
 }
 \examples{
 \donttest{

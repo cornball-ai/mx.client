@@ -37,7 +37,7 @@ Read this first; it frames what the rest of the vignette delivers.
   This cannot recover another user's historical outbound session, and
   decrypted history from a forwarded key never reports its original sender as
   verified.
-- **Interactive SAS verification.** With mx.crypto >= 0.2.1.2, an explicit
+- **Interactive SAS verification.** With mx.crypto >= 0.2.2, an explicit
   human comparison and valid MACs authenticate a fixed snapshot of both
   device and master keys. Trust signatures are uploaded and checked only
   after those requirements pass. QR verification is not implemented.
@@ -121,9 +121,9 @@ the expected person.
 
 ## Interactive SAS verification
 
-Requires mx.client >= 0.2.0.10 and mx.crypto >= 0.2.1.2. Older crypto builds
-can still perform existing E2EE operations, but the SAS entry points refuse
-with an upgrade message. The handshake negotiates `m.sas.v1`,
+Use mx.client >= 0.2.0.10 with the released mx.crypto >= 0.2.2. Builds without
+the SAS primitives can still perform existing E2EE operations, but the SAS
+entry points refuse with an upgrade message. The handshake negotiates `m.sas.v1`,
 `curve25519-hkdf-sha256`, `sha256`, and `hkdf-hmac-sha256.v2`. It supports
 in-room and to-device requests, emoji and decimal displays, cancellation,
 timeouts, simultaneous starts, commitment checks, and both device/master MACs.
@@ -441,16 +441,17 @@ Everything stateful lives in the crypto store directory:
 | `sessions.json` | pickled Olm/Megolm sessions and outstanding key requests |
 | `cross-signing.json` | encrypted master, self-signing, and user-signing private keys |
 
-From mx.client 0.2.0.11, all 3 store files declare schema version 1.
-Unknown or malformed versions are rejected before unpickling. This is the
-mx.client file format version, not the mx.crypto package version.
-Unversioned `sessions.json` and raw base64 `account.pickle` files remain
-readable and are migrated on the next save, never by a read-only load.
-Cross-signing files have always required an explicit version.
+From mx.client 0.2.0.11, `sessions.json` declares schema version 1;
+cross-signing files already require it. Unknown or malformed versions are
+rejected before unpickling, with the full file path in the error. This is
+the mx.client file format version, not the mx.crypto package version.
+Unversioned session stores remain readable and migrate on save, never on load.
 
-New `account.pickle` files use a JSON envelope around the encrypted pickle.
-Clients older than 0.2.0.11 cannot read that envelope. Back up the whole store
-before upgrading; preserve that backup if an older client may need to resume.
+`account.pickle` continues to be written as a raw encrypted pickle so older
+clients can still read it. The account loader also accepts version-1 JSON
+envelopes and refuses unknown versions without rewriting the file. Envelope
+writes are deferred until consumers have upgraded; reading one and later
+saving the account writes the compatible raw form.
 
 `mx_crypto_sessions_save()` / `mx_crypto_sessions_load()` round-trip the
 session set, so an established room key keeps decrypting across process
