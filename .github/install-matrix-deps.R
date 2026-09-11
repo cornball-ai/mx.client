@@ -26,5 +26,5 @@ for (pkg in names(floors)) {
     }
     message(pkg, " ", utils::packageVersion(pkg), " at ", find.package(pkg))
 }
-stopifnot(utils::packageVersion("mx.crypto") >= "0.2.1.2",
+stopifnot(utils::packageVersion("mx.crypto") >= "0.2.2",
     "mxc_sas_commitment" %in% getNamespaceExports("mx.crypto"))

@@ -10,7 +10,7 @@ cat(status, "\n")
 library(pkg, character.only = TRUE, lib.loc = check_dir)
 expected <- unname(read.dcf("DESCRIPTION")[1, "Version"])
 stopifnot(identical(as.character(utils::packageVersion(pkg)), expected),
-    utils::packageVersion("mx.crypto") >= "0.2.1.2",
+    utils::packageVersion("mx.crypto") >= "0.2.2",
     "mxc_sas_commitment" %in% getNamespaceExports("mx.crypto"))
 cat("Testing checked build:", find.package(pkg), expected, "\n")
 cat("Crypto build:", find.package("mx.crypto"),
