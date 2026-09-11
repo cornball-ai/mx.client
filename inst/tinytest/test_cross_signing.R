@@ -20,8 +20,12 @@ mx.client:::mx_crypto_cross_signing_save(keys, store)
 loaded <- mx_crypto_cross_signing_load(store)
 expect_identical(mx.crypto::mxc_signing_key_public(loaded$master),
                  mx.crypto::mxc_signing_key_public(keys$master))
-expect_identical(as.octmode(file.info(file.path(
-    store, "cross-signing.json"))$mode), as.octmode("600"))
+# Windows file modes do not represent Unix owner/group/other permissions.
+# Keep the exact owner-only check on Unix; all key tests run on both platforms.
+if (.Platform$OS.type == "unix") {
+    expect_identical(as.octmode(file.info(file.path(
+        store, "cross-signing.json"))$mode), as.octmode("600"))
+}
 
 objects <- mx.client:::mx_crypto_cross_signing_objects(
     loaded, UID, device, DEV)
