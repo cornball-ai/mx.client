@@ -24,6 +24,10 @@ jobs:
         with:
           backend: RAPT
 
+      - name: Dependencies
+        run: ./run.sh install_deps
+
+      # Install these AFTER generic dependencies, which may select stale binaries.
       # DESCRIPTION declares the SAS crypto floor. Keep the tested,
       # immutable source pin while CRAN mirrors finish updating.
       # Disable rapt for these source installs so it cannot substitute an
@@ -35,9 +39,6 @@ jobs:
         run: |
           Rscript -e 'install.packages(c("curl", "jsonlite"))'
           Rscript .github/install-matrix-deps.R
-
-      - name: Dependencies
-        run: ./run.sh install_deps
 
       # mx.crypto above builds from its vendored Rust sources using the
       # hosted runner's Rust toolchain. simplermarkdown is still needed for
