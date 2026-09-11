@@ -441,6 +441,17 @@ Everything stateful lives in the crypto store directory:
 | `sessions.json` | pickled Olm/Megolm sessions and outstanding key requests |
 | `cross-signing.json` | encrypted master, self-signing, and user-signing private keys |
 
+From mx.client 0.2.0.11, all 3 store files declare schema version 1.
+Unknown or malformed versions are rejected before unpickling. This is the
+mx.client file format version, not the mx.crypto package version.
+Unversioned `sessions.json` and raw base64 `account.pickle` files remain
+readable and are migrated on the next save, never by a read-only load.
+Cross-signing files have always required an explicit version.
+
+New `account.pickle` files use a JSON envelope around the encrypted pickle.
+Clients older than 0.2.0.11 cannot read that envelope. Back up the whole store
+before upgrading; preserve that backup if an older client may need to resume.
+
 `mx_crypto_sessions_save()` / `mx_crypto_sessions_load()` round-trip the
 session set, so an established room key keeps decrypting across process
 restarts. One caution: the account binds to the config's `device_id`.

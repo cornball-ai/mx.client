@@ -14,7 +14,8 @@ mx_crypto_account_save(account, store_dir)
 The pickle path, invisibly.
 }
 \description{
-Persist an Olm account to the store
+Writes a version-1 JSON envelope containing the encrypted account pickle.
+The encryption key and device identity are unchanged.
 }
 \examples{
 \donttest{

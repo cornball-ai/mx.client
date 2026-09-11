@@ -24,14 +24,14 @@ jobs:
         with:
           backend: RAPT
 
-      # Keep older E2EE dependency floors in DESCRIPTION. SAS needs the
-      # reviewed crypto build below until it is available on CRAN/drat.
+      # DESCRIPTION declares the SAS crypto floor. Keep the tested,
+      # immutable source pin while CRAN mirrors finish updating.
       # Disable rapt for these source installs so it cannot substitute an
-      # older binary. The helper reads the base floors from DESCRIPTION.
+      # older binary. The helper reads the floors from DESCRIPTION.
       - name: Install Matrix development dependencies
         env:
-          # mx.crypto PR #8, merged to main at version 0.2.1.2.
-          MX_CRYPTO_REF: "7feb052ab40e7ac5620b4d405635a2bc4905984c"
+          # mx.crypto 0.2.2, with the reviewed SAS implementation.
+          MX_CRYPTO_REF: "5f67d5531fec8f476f20345d70d95cfc9eaaa502"
         run: |
           Rscript -e 'install.packages(c("curl", "jsonlite"))'
           Rscript .github/install-matrix-deps.R

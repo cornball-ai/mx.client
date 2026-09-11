@@ -52,9 +52,9 @@ mx_crypto_cross_signing_load <- function(store_dir) {
     blob <- jsonlite::fromJSON(paste(readLines(path, warn = FALSE),
                                      collapse = "\n"),
                                simplifyVector = FALSE)
+    crypto_store_version(blob, path)
     needed <- c("master", "self_signing", "user_signing")
-    if (!identical(as.integer(blob$version), 1L) ||
-        any(vapply(needed, function(nm) is.null(blob[[nm]]), logical(1)))) {
+    if (any(vapply(needed, function(nm) is.null(blob[[nm]]), logical(1)))) {
         stop("mx.client: invalid cross-signing store at ", path,
              "; refusing to replace an identity whose private keys may be lost",
              call. = FALSE)

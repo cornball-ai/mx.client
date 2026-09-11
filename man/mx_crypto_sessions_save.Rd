@@ -16,6 +16,7 @@ The path written, invisibly.
 \description{
 Pickles every live session (encrypted at rest with the store key) into
 \code{sessions.json}. Reload with \code{mx_crypto_sessions_load()}.
+New files declare schema version 1; unversioned legacy files remain readable.
 }
 \examples{
 \donttest{
