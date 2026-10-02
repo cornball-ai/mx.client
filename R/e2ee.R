@@ -286,8 +286,11 @@ mx_crypto_encrypt_for_devices <- function(account, sessions, room_id,
 #'   \code{verification_events} (original verification envelopes, separated
 #'   from chat messages; no handshake or network side effect is performed),
 #'   \code{sessions}, unsent \code{key_requests}, matching
-#'   \code{key_request_cancellations}, and \code{incoming_key_requests}
-#'   for a policy-aware sharing layer to inspect.
+#'   \code{key_request_cancellations}, \code{incoming_key_requests}
+#'   for a policy-aware sharing layer to inspect, and \code{to_device}:
+#'   every other Olm-encrypted to-device event that decrypted and whose
+#'   claimed sender matches the envelope, each as \code{list(type,
+#'   content, sender, sender_bound)}. Call encryption keys arrive here.
 #' @examples
 #' \donttest{
 #' if (requireNamespace("mx.crypto", quietly = TRUE)) {
@@ -308,6 +311,7 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
     cancellations <- list()
     incoming_requests <- list()
     verification_events <- list()
+    to_device <- list()
 
     # 1. To-device: recover shared room keys.
     for (ev in sync_resp$to_device$events %||% list()) {
@@ -425,6 +429,14 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
             cancellations[[length(cancellations) + 1L]] <-
                 mx_crypto_key_request_cancellation(pending)
             sessions$key_requests[[key]] <- NULL
+        } else if (identical(decoded$sender, ev$sender)) {
+            # Any other Olm-encrypted to-device event (call encryption
+            # keys, for one) is handed to the caller. The envelope sender
+            # is the homeserver's word and the plaintext sender is the
+            # device's claim; they have to agree.
+            to_device[[length(to_device) + 1L]] <- list(
+                type = decoded$type, content = decoded$content,
+                sender = decoded$sender, sender_bound = chk$bound)
         }
     }
 
@@ -540,5 +552,6 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
          verification_events = verification_events,
          key_requests = key_requests,
          key_request_cancellations = cancellations,
-         incoming_key_requests = incoming_requests)
+         incoming_key_requests = incoming_requests,
+         to_device = to_device)
 }

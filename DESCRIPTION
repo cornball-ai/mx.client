@@ -22,11 +22,12 @@ Depends:
     R (>= 4.0)
 Imports:
     jsonlite,
-    mx.api (>= 0.3.0.2),
+    mx.api (>= 0.3.1.1),
     stats,
     tools,
     utils
 Suggests:
+    livekitr,
     mx.crypto (>= 0.2.2),
     simplermarkdown,
     tinytest
