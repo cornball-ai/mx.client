@@ -359,9 +359,21 @@ mx_call_send_membership <- function(call, now = Sys.time()) {
     content <- mx_call_member_content(call$client$user_id,
                                       call$client$device_id, call$service_url,
                                       call$room_id, call$intent, now)
-    mx.api::mx_set_state(mx_client_session(call$client), call$room_id,
-                         MX_CALL_MEMBER, content,
-                         mx_call_state_key(call$client$user_id, call$client$device_id))
+    tryCatch(
+        mx.api::mx_set_state(mx_client_session(call$client), call$room_id,
+                             MX_CALL_MEMBER, content,
+                             mx_call_state_key(call$client$user_id,
+                                               call$client$device_id)),
+        mx_error_M_FORBIDDEN = function(e) {
+            # Rooms default to power level 50 for state events. Element
+            # and FluffyChat set this event type to 0 when they create a
+            # room with calls; a room made another way needs the same.
+            stop(call$client$user_id, " may not send ", MX_CALL_MEMBER,
+                 " in ", call$room_id, ": ", conditionMessage(e),
+                 ". The room's m.room.power_levels needs events[\"",
+                 MX_CALL_MEMBER, "\"] low enough for every participant ",
+                 "(call clients set it to 0).", call. = FALSE)
+        })
     call$membership_sent <- now
     invisible(NULL)
 }
@@ -535,28 +547,41 @@ mx_call_handle <- function(call, sync, processed = NULL) {
     list(keys = received, members = members)
 }
 
-#' Sync once and poll the media of a call
+#' Poll the media of a call, then sync once
 #'
 #' One iteration of a call loop for programs with no sync loop of their
-#' own: syncs with \code{\link{mx_sync_update}}, applies the response with
-#' \code{\link{mx_call_handle}}, and polls the LiveKit session with
-#' \code{livekitr::lk_poll()}, which is where audio callbacks run.
+#' own: polls the LiveKit session with \code{livekitr::lk_poll()}, which
+#' is where audio callbacks run, for up to \code{media_timeout} seconds
+#' (it returns as soon as media events arrive, so the wait is short while
+#' someone speaks), then syncs with \code{\link{mx_sync_update}} and
+#' applies the response with \code{\link{mx_call_handle}}.
+#'
+#' Audio callbacks only run while this process polls, so the sync must
+#' not block for long: the default \code{timeout = 0} asks the homeserver
+#' to answer at once. Not every homeserver complies: Tuwunel 1.9 holds an
+#' incremental sync that has nothing new for 5 s whatever the timeout,
+#' and returns at once only when something happened. Frames that arrive
+#' meanwhile wait in \pkg{livekitr}'s native queue, so nothing is lost,
+#' but they reach the callback late. A program that needs prompt audio
+#' on such a server should sync from another process or thread.
 #'
 #' @param call An \code{"mx_call"}.
-#' @param timeout Seconds to wait for the sync long poll.
 #' @param media_timeout Seconds to wait in the media poll.
+#' @param timeout Seconds to let the sync long poll wait.
 #' @return The LiveKit events from \code{livekitr::lk_poll()}, or an
 #'   empty list when the call has no media session.
 #' @export
-mx_call_poll <- function(call, timeout = 1, media_timeout = 0.1) {
+mx_call_poll <- function(call, media_timeout = 0.5, timeout = 0) {
+    events <- if (is.null(call$session)) {
+        list()
+    } else {
+        livekitr::lk_poll(call$session, timeout = media_timeout)
+    }
     res <- mx_sync_update(call$client, timeout = as.integer(timeout * 1000),
                           save = !is.null(attr(call$client, "path")))
     call$client <- res$client
     mx_call_handle(call, res$sync)
-    if (is.null(call$session)) {
-        return(list())
-    }
-    livekitr::lk_poll(call$session, timeout = media_timeout)
+    events
 }
 
 #' Leave a MatrixRTC call
