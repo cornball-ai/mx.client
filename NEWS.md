@@ -1,3 +1,23 @@
+# mx.client 0.2.1.1
+
+## MatrixRTC calls
+
+* New: `mx_call_join()`, `mx_call_handle()`, `mx_call_poll()`,
+  `mx_call_connect()` and `mx_call_leave()` run a MatrixRTC call over
+  LiveKit the way Element Call and FluffyChat do: a per-device
+  `org.matrix.msc3401.call.member` state event, a media token from the
+  LiveKit JWT service, and per-participant media keys exchanged as
+  Olm-encrypted `io.element.call.encryption_keys` to-device events, with
+  their key rotation policy. Media goes through the `livekitr` package
+  (Suggests). `mx_call_members()`, `mx_call_service_url()`,
+  `mx_call_key_parse()` and `mx_call_key_plan()` expose the pieces.
+* New: `mx_send_to_device_encrypted()` and `mx_crypto_encrypt_to_device()`
+  send an Olm-encrypted to-device event of any type.
+* `mx_crypto_process_sync()` returns decrypted Olm to-device events other
+  than room keys and verification messages in a new `to_device` element.
+* Requires mx.api 0.3.1.1 for the OpenID, RTC transport, LiveKit token and
+  room-state endpoints.
+
 # mx.client 0.2.1
 
 ## Store compatibility and dependencies
