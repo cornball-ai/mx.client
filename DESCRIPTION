@@ -1,8 +1,8 @@
 Package: mx.client
 Type: Package
 Title: Stateful Matrix Client Helpers
-Version: 0.2.1
-Date: 2026-09-11
+Version: 0.2.1.1
+Date: 2026-10-02
 Authors@R: c(
     person("Troy", "Hernandez", role = c("aut", "cre"),
            email = "troy@cornball.ai",
@@ -22,11 +22,12 @@ Depends:
     R (>= 4.0)
 Imports:
     jsonlite,
-    mx.api (>= 0.3.0.2),
+    mx.api (>= 0.3.1.1),
     stats,
     tools,
     utils
 Suggests:
+    livekitr,
     mx.crypto (>= 0.2.2),
     simplermarkdown,
     tinytest

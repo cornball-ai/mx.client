@@ -44,8 +44,11 @@ List with \code{events} (decrypted, normalized), updated
   \code{verification_events} (original verification envelopes, separated
   from chat messages; no handshake or network side effect is performed),
   \code{sessions}, unsent \code{key_requests}, matching
-  \code{key_request_cancellations}, and \code{incoming_key_requests}
-  for a policy-aware sharing layer to inspect.
+  \code{key_request_cancellations}, \code{incoming_key_requests}
+  for a policy-aware sharing layer to inspect, and \code{to_device}:
+  every other Olm-encrypted to-device event that decrypted and whose
+  claimed sender matches the envelope, each as \code{list(type,
+  content, sender, sender_bound)}. Call encryption keys arrive here.
 }
 \description{
 Handles inbound to-device \code{m.room.encrypted} (Olm) messages,
