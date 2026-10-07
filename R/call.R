@@ -194,13 +194,6 @@ mx_call_key_content <- function(key, index, user_id, device_id, room_id,
     )
 }
 
-#' Read a call key event
-#'
-#' Parses a decrypted \code{io.element.call.encryption_keys} to-device
-#' event (from the \code{to_device} list of
-#' \code{\link{mx_crypto_process_sync}}) into the LiveKit identity it
-#' belongs to and the key to set for it.
-#'
 # Normalize the content's `keys` field to a list of {index, key}. The
 # wire sends an array; depending on how the Olm plaintext was parsed it
 # arrives as an unnamed list of objects (simplifyVector = FALSE), a data
