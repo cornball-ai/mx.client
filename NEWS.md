@@ -1,3 +1,11 @@
+# mx.client 0.2.1.2
+
+* Fix: `io.element.call.encryption_keys` carries `keys` as an array of
+  `{index, key}`. `mx_call_key_content()` and `mx_call_key_parse()`
+  treated it as a single object, so real key events (parsed off the wire
+  with `simplifyVector = FALSE`) were dropped and call audio decrypted to
+  silence. The parser now reads the array and returns one entry per key.
+
 # mx.client 0.2.1.1
 
 ## MatrixRTC calls
