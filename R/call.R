@@ -177,7 +177,9 @@ mx_call_b64_decode <- function(x) {
 mx_call_key_content <- function(key, index, user_id, device_id, room_id,
                                 now = Sys.time()) {
     list(
-         keys = list(index = as.integer(index), key = mx_call_b64(key)),
+         # keys is an array of {index, key}; the wrapping list makes JSON
+         # serialize it as an array even with a single entry.
+         keys = list(list(index = as.integer(index), key = mx_call_b64(key))),
          member = list(id = mx_call_identity(user_id, device_id),
                        claimed_device_id = device_id),
          room_id = room_id,
@@ -193,33 +195,76 @@ mx_call_key_content <- function(key, index, user_id, device_id, room_id,
 #' \code{\link{mx_crypto_process_sync}}) into the LiveKit identity it
 #' belongs to and the key to set for it.
 #'
+# Normalize the content's `keys` field to a list of {index, key}. The
+# wire sends an array; depending on how the Olm plaintext was parsed it
+# arrives as an unnamed list of objects (simplifyVector = FALSE), a data
+# frame (simplifyVector = TRUE), and we also tolerate a single {index,
+# key} object from a non-conformant sender.
+mx_call_key_entries <- function(keys) {
+    if (is.null(keys)) {
+        return(list())
+    }
+    if (is.data.frame(keys)) {
+        return(lapply(seq_len(nrow(keys)), function(i) {
+            list(index = keys$index[[i]], key = keys$key[[i]])
+        }))
+    }
+    if (!is.null(names(keys)) && !is.null(keys$index)) {
+        return(list(list(index = keys$index, key = keys$key)))
+    }
+    if (is.list(keys)) {
+        return(Filter(function(e) is.list(e) && !is.null(e$index), keys))
+    }
+    list()
+}
+
+#' Read a call key event
+#'
+#' Parses a decrypted \code{io.element.call.encryption_keys} to-device
+#' event (from the \code{to_device} list of
+#' \code{\link{mx_crypto_process_sync}}) into the LiveKit identities and
+#' keys to set. The event's \code{keys} field is an array, so one event
+#' can carry several keys at different indices; each becomes one entry.
+#'
 #' @param event List with \code{type}, \code{content} and \code{sender}.
 #' @param room_id The call's room; keys for other rooms are ignored.
-#' @return \code{list(identity, key, index)}, with \code{key} a raw
-#'   vector, or NULL when the event is not a usable key for this room.
+#' @return A list of \code{list(identity, key, index)}, with \code{key} a
+#'   raw vector, one per usable key in the event; empty when the event is
+#'   not a usable key for this room.
 #' @examples
 #' ev <- list(type = "io.element.call.encryption_keys",
 #'     sender = "@alice:example.org",
-#'     content = list(keys = list(index = 3, key = "AAECAwQFBgcICQoLDA0ODw=="),
+#'     content = list(
+#'         keys = list(list(index = 3, key = "AAECAwQFBgcICQoLDA0ODw==")),
 #'         member = list(claimed_device_id = "PHONE"), room_id = "!r:example.org"))
 #' mx_call_key_parse(ev, "!r:example.org")
 #' @export
 mx_call_key_parse <- function(event, room_id) {
-    if (!identical(event$type, MX_CALL_KEYS)) return(NULL)
+    if (!identical(event$type, MX_CALL_KEYS)) return(list())
     c <- event$content
-    if (!identical(c$room_id, room_id)) return(NULL)
+    if (!identical(c$room_id, room_id)) return(list())
     device <- c$member$claimed_device_id
-    index <- c$keys$index
-    key <- c$keys$key
     if (!is.character(event$sender) || !is.character(device) ||
-        !nzchar(device) || !is.numeric(index) || length(index) != 1L ||
-        index < 0 || index != floor(index) || !is.character(key)) {
-        return(NULL)
+        !nzchar(device)) {
+        return(list())
     }
-    bytes <- tryCatch(mx_call_b64_decode(key), error = function(e) NULL)
-    if (is.null(bytes) || !length(bytes)) return(NULL)
-    list(identity = mx_call_identity(event$sender, device), key = bytes,
-         index = as.integer(index))
+    identity <- mx_call_identity(event$sender, device)
+    out <- list()
+    for (k in mx_call_key_entries(c$keys)) {
+        index <- k$index
+        key <- k$key
+        if (!is.numeric(index) || length(index) != 1L || index < 0 ||
+            index != floor(index) || !is.character(key) || length(key) != 1L) {
+            next
+        }
+        bytes <- tryCatch(mx_call_b64_decode(key), error = function(e) NULL)
+        if (is.null(bytes) || !length(bytes)) {
+            next
+        }
+        out[[length(out) + 1L]] <- list(identity = identity, key = bytes,
+                                        index = as.integer(index))
+    }
+    out
 }
 
 # The key state of one call: our key and index, when the key was made,
@@ -521,8 +566,7 @@ mx_call_handle <- function(call, sync, processed = NULL) {
     }
     received <- character()
     for (ev in processed$to_device %||% list()) {
-        parsed <- mx_call_key_parse(ev, call$room_id)
-        if (!is.null(parsed)) {
+        for (parsed in mx_call_key_parse(ev, call$room_id)) {
             mx_call_apply_peer_key(call, parsed)
             received <- c(received, parsed$identity)
         }

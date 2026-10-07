@@ -121,43 +121,82 @@ expect_error(
 key <- as.raw(0:15)
 kc <- ns$mx_call_key_content(key, 3L, "@bot:example.org", "BOTDEV", ROOM,
                              now = T0)
-expect_identical(kc$keys$index, 3L)
-expect_identical(kc$keys$key, "AAECAwQFBgcICQoLDA0ODw==")
+# keys is an ARRAY of {index, key} (MSC + Element/FluffyChat wire shape).
+expect_true(is.null(names(kc$keys)))
+expect_identical(length(kc$keys), 1L)
+expect_identical(kc$keys[[1]]$index, 3L)
+expect_identical(kc$keys[[1]]$key, "AAECAwQFBgcICQoLDA0ODw==")
 expect_identical(kc$member$id, "@bot:example.org:BOTDEV")
 expect_identical(kc$member$claimed_device_id, "BOTDEV")
 expect_identical(kc$room_id, ROOM)
 expect_identical(kc$session$application, "m.call")
 expect_equal(kc$sent_ts, 1.7e12)
+# It must serialize with keys as a JSON array of objects.
+kc_json <- jsonlite::toJSON(kc, auto_unbox = TRUE)
+expect_true(grepl('"keys":\\[\\{"index":3,"key":', kc_json))
 
-parsed <- mx_call_key_parse(list(type = "io.element.call.encryption_keys",
-                                 sender = "@bot:example.org", content = kc),
-                            ROOM)
-expect_identical(parsed$identity, "@bot:example.org:BOTDEV")
-expect_identical(parsed$key, key)
-expect_identical(parsed$index, 3L)
-# Unpadded and URL-safe base64 decode too
-kc2 <- kc
-kc2$keys$key <- "AAECAwQFBgcICQoLDA0ODw"
-expect_identical(mx_call_key_parse(list(type = "io.element.call.encryption_keys",
-    sender = "@bot:example.org", content = kc2), ROOM)$key, key)
+# A spec-shaped event as it arrives off the wire: Olm plaintext is parsed
+# with simplifyVector = FALSE, so keys is a list of lists. This is the
+# exact shape that regressed in 0.2.1.1.
+wire <- jsonlite::fromJSON(paste0(
+    '{"type":"io.element.call.encryption_keys","sender":"@bot:example.org",',
+    '"content":{"call_id":"","keys":[{"index":3,',
+    '"key":"AAECAwQFBgcICQoLDA0ODw"}],',
+    '"member":{"claimed_device_id":"BOTDEV","id":"@bot:example.org"},',
+    '"room_id":"', ROOM, '","sent_ts":1}}'), simplifyVector = FALSE)
+parsed <- mx_call_key_parse(wire, ROOM)
+expect_identical(length(parsed), 1L)
+expect_identical(parsed[[1]]$identity, "@bot:example.org:BOTDEV")
+expect_identical(parsed[[1]]$key, key)
+expect_identical(parsed[[1]]$index, 3L)
+
+# Our own content round-trips through the parser.
+rt <- mx_call_key_parse(list(type = "io.element.call.encryption_keys",
+                             sender = "@bot:example.org", content = kc), ROOM)
+expect_identical(length(rt), 1L)
+expect_identical(rt[[1]]$key, key)
+expect_identical(rt[[1]]$index, 3L)
+
+# Several keys in one event: each becomes an entry.
+multi <- list(type = "io.element.call.encryption_keys",
+              sender = "@bot:example.org",
+              content = list(room_id = ROOM,
+                             member = list(claimed_device_id = "BOTDEV"),
+                             keys = list(list(index = 0, key = "AAA="),
+                                         list(index = 1, key = "AQE="))))
+pm <- mx_call_key_parse(multi, ROOM)
+expect_identical(length(pm), 2L)
+expect_identical(vapply(pm, `[[`, 0L, "index"), c(0L, 1L))
+
+# Tolerate a non-conformant sender that puts keys as a single object.
+obj <- list(type = "io.element.call.encryption_keys",
+            sender = "@bot:example.org",
+            content = list(room_id = ROOM,
+                           member = list(claimed_device_id = "BOTDEV"),
+                           keys = list(index = 3, key = "AAECAwQFBgcICQoLDA0ODw")))
+expect_identical(mx_call_key_parse(obj, ROOM)[[1]]$key, key)
+
+# Unpadded and URL-safe base64 decode too.
 kc3 <- kc
-kc3$keys$key <- jsonlite::base64url_enc(as.raw(c(0xfb, 0xff, 0xfe, 1)))
+kc3$keys[[1]]$key <- jsonlite::base64url_enc(as.raw(c(0xfb, 0xff, 0xfe, 1)))
 expect_identical(mx_call_key_parse(list(type = "io.element.call.encryption_keys",
-    sender = "@bot:example.org", content = kc3), ROOM)$key,
+    sender = "@bot:example.org", content = kc3), ROOM)[[1]]$key,
     as.raw(c(0xfb, 0xff, 0xfe, 1)))
-# Rejections: other room, other type, bad index, missing device
-expect_null(mx_call_key_parse(list(type = "io.element.call.encryption_keys",
-    sender = "@bot:example.org", content = kc), "!other:example.org"))
-expect_null(mx_call_key_parse(list(type = "m.room_key", sender = "@b:ex",
-                                   content = kc), ROOM))
+
+# Rejections return an empty list: other room, other type, bad index,
+# missing device.
+expect_identical(mx_call_key_parse(list(type = "io.element.call.encryption_keys",
+    sender = "@bot:example.org", content = kc), "!other:example.org"), list())
+expect_identical(mx_call_key_parse(list(type = "m.room_key", sender = "@b:ex",
+                                        content = kc), ROOM), list())
 kc4 <- kc
-kc4$keys$index <- -1
-expect_null(mx_call_key_parse(list(type = "io.element.call.encryption_keys",
-    sender = "@bot:example.org", content = kc4), ROOM))
+kc4$keys[[1]]$index <- -1
+expect_identical(mx_call_key_parse(list(type = "io.element.call.encryption_keys",
+    sender = "@bot:example.org", content = kc4), ROOM), list())
 kc5 <- kc
 kc5$member$claimed_device_id <- NULL
-expect_null(mx_call_key_parse(list(type = "io.element.call.encryption_keys",
-    sender = "@bot:example.org", content = kc5), ROOM))
+expect_identical(mx_call_key_parse(list(type = "io.element.call.encryption_keys",
+    sender = "@bot:example.org", content = kc5), ROOM), list())
 
 # ---- rotation policy --------------------------------------------------
 
