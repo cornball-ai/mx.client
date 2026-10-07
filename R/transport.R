@@ -293,6 +293,8 @@ mx_crypto_verify_claimed_otks <- function(devices, claimed) {
 #'   a room whose other members have no devices is a real room.
 #' @param member_ids Character vector of room member user ids (used when
 #'   \code{recipients} is NULL).
+#' @param event_type Inner Matrix event type, defaulting to
+#'   \code{m.room.message}.
 #' @return List with \code{event_id} and the updated \code{sessions}.
 #' @examples
 #' \dontrun{
@@ -302,7 +304,8 @@ mx_crypto_verify_claimed_otks <- function(devices, claimed) {
 #' }
 #' @export
 mx_send_encrypted <- function(client, account, sessions, room_id, content,
-                              store_dir, recipients = NULL, member_ids = NULL) {
+                              store_dir, recipients = NULL, member_ids = NULL,
+                              event_type = "m.room.message") {
     mx_require_crypto()
     s <- mx_client_session(client)
     sender_curve <- mx.crypto::mxc_account_identity_keys(account)$curve25519
@@ -376,7 +379,7 @@ mx_send_encrypted <- function(client, account, sessions, room_id, content,
 
     out <- mx_crypto_encrypt_for_devices(account, sessions, room_id,
         content, sender_curve, client$device_id, recipients = recipients,
-        sender_user_id = client$user_id)
+        sender_user_id = client$user_id, event_type = event_type)
     for (p in out$to_device) {
         messages <- stats::setNames(
                                     list(stats::setNames(list(p$content), p$device_id)), p$user_id)

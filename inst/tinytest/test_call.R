@@ -126,6 +126,10 @@ expect_true(is.null(names(kc$keys)))
 expect_identical(length(kc$keys), 1L)
 expect_identical(kc$keys[[1]]$index, 3L)
 expect_identical(kc$keys[[1]]$key, "AAECAwQFBgcICQoLDA0ODw==")
+# Superset content: FluffyChat's top-level device_id/call_id AND Element's
+# member block, so one object serves both transports.
+expect_identical(kc$device_id, "BOTDEV")
+expect_identical(kc$call_id, "")
 expect_identical(kc$member$id, "@bot:example.org:BOTDEV")
 expect_identical(kc$member$claimed_device_id, "BOTDEV")
 expect_identical(kc$room_id, ROOM)
@@ -134,6 +138,20 @@ expect_equal(kc$sent_ts, 1.7e12)
 # It must serialize with keys as a JSON array of objects.
 kc_json <- jsonlite::toJSON(kc, auto_unbox = TRUE)
 expect_true(grepl('"keys":\\[\\{"index":3,"key":', kc_json))
+
+# A FluffyChat room-event key: top-level device_id, no member, no room_id
+# in content (the room is the event's own). Parsed with simplifyVector
+# = FALSE as off the wire.
+room_ev <- jsonlite::fromJSON(paste0(
+    '{"type":"io.element.call.encryption_keys","sender":"@al:example.org",',
+    '"room_id":"', ROOM, '","content":{"call_id":"","device_id":"PHONE",',
+    '"keys":[{"index":2,"key":"AAECAwQFBgcICQoLDA0ODw"}],"sent_ts":1}}'),
+    simplifyVector = FALSE)
+rp <- mx_call_key_parse(room_ev, ROOM)
+expect_identical(length(rp), 1L)
+expect_identical(rp[[1]]$identity, "@al:example.org:PHONE")
+expect_identical(rp[[1]]$index, 2L)
+expect_identical(rp[[1]]$key, key)
 
 # A spec-shaped event as it arrives off the wire: Olm plaintext is parsed
 # with simplifyVector = FALSE, so keys is a list of lists. This is the
@@ -193,10 +211,19 @@ kc4 <- kc
 kc4$keys[[1]]$index <- -1
 expect_identical(mx_call_key_parse(list(type = "io.element.call.encryption_keys",
     sender = "@bot:example.org", content = kc4), ROOM), list())
+# No device at all (neither member$claimed_device_id nor top-level
+# device_id): unparseable.
 kc5 <- kc
 kc5$member$claimed_device_id <- NULL
+kc5$device_id <- NULL
 expect_identical(mx_call_key_parse(list(type = "io.element.call.encryption_keys",
     sender = "@bot:example.org", content = kc5), ROOM), list())
+# member alone still works when device_id is absent (Element Call shape).
+kc6 <- kc
+kc6$device_id <- NULL
+expect_identical(mx_call_key_parse(list(type = "io.element.call.encryption_keys",
+    sender = "@bot:example.org", content = kc6), ROOM)[[1]]$identity,
+    "@bot:example.org:BOTDEV")
 
 # ---- rotation policy --------------------------------------------------
 
@@ -296,18 +323,37 @@ local({
                                        "PHONE", ROOM)
     other_room <- ns$mx_call_key_content(as.raw(1:16), 2L, "@alice:example.org",
                                          "PHONE", "!other:example.org")
-    processed <- list(to_device = list(
-        list(type = "io.element.call.encryption_keys",
-             sender = "@alice:example.org", content = peer_key),
-        list(type = "io.element.call.encryption_keys",
-             sender = "@alice:example.org", content = other_room),
-        list(type = "org.example.other", sender = "@x:ex", content = list())))
+    # A room-event key (FluffyChat): no content room_id, room is the
+    # record's room_id; a non-call room event and a wrong-room key event
+    # must be ignored.
+    room_key <- list(type = "io.element.call.encryption_keys",
+                     sender = "@bob:example.org", room_id = ROOM,
+                     content = list(call_id = "", device_id = "LAPTOP",
+                         keys = list(list(index = 4, key = "AAECAwQFBgcICQoLDA0ODw"))))
+    processed <- list(
+        to_device = list(
+            list(type = "io.element.call.encryption_keys",
+                 sender = "@alice:example.org", content = peer_key),
+            list(type = "io.element.call.encryption_keys",
+                 sender = "@alice:example.org", content = other_room),
+            list(type = "org.example.other", sender = "@x:ex", content = list())),
+        events = list(
+            room_key,
+            list(type = "m.room.message", sender = "@c:ex", room_id = ROOM,
+                 content = list(body = "hi")),
+            list(type = "io.element.call.encryption_keys", sender = "@d:ex",
+                 room_id = "!elsewhere:example.org",
+                 content = list(device_id = "X",
+                     keys = list(list(index = 9, key = "AAA="))))))
     quiet <- list(rooms = list(join = list()))
     res <- mx_call_handle(call, quiet, processed)
-    expect_identical(res$keys, "@alice:example.org:PHONE")
+    expect_identical(sort(res$keys),
+                     c("@alice:example.org:PHONE", "@bob:example.org:LAPTOP"))
     expect_null(res$members)
-    expect_identical(applied, list("@alice:example.org:PHONE"))
+    expect_identical(sort(unlist(applied)),
+                     c("@alice:example.org:PHONE", "@bob:example.org:LAPTOP"))
     expect_identical(call$keys$peers[["@alice:example.org:PHONE"]]$index, 2L)
+    expect_identical(call$keys$peers[["@bob:example.org:LAPTOP"]]$index, 4L)
 
     # A membership event in the room's timeline triggers a state refresh
     with_state <- list(rooms = list(join = stats::setNames(list(list(

@@ -11,7 +11,8 @@ mx_send_encrypted(
   content,
   store_dir,
   recipients = NULL,
-  member_ids = NULL
+  member_ids = NULL,
+  event_type = "m.room.message"
 )
 }
 \arguments{
@@ -36,6 +37,9 @@ a room whose other members have no devices is a real room.}
 
 \item{member_ids}{Character vector of room member user ids (used when
 \code{recipients} is NULL).}
+
+\item{event_type}{Inner Matrix event type, defaulting to
+\code{m.room.message}.}
 }
 \value{
 List with \code{event_id} and the updated \code{sessions}.

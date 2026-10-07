@@ -282,7 +282,9 @@ mx_crypto_encrypt_for_devices <- function(account, sessions, room_id,
 #'   \code{is_self} tagging and as the recipient of key requests.
 #' @param self_device_id Character or NULL. This device id. Both this and
 #'   \code{self_id} are required to create room-key requests.
-#' @return List with \code{events} (decrypted, normalized), updated
+#' @return List with \code{events} (decrypted, normalized; each also
+#'   carries its inner \code{type} and \code{content}, so non-message
+#'   room events such as call encryption keys are usable), updated
 #'   \code{verification_events} (original verification envelopes, separated
 #'   from chat messages; no handshake or network side effect is performed),
 #'   \code{sessions}, unsent \code{key_requests}, matching
@@ -536,6 +538,12 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
                 sender = ev$sender,
                 sender_verified = verified,
                 is_self = isTRUE(ev$sender == self_id),
+                # The inner type and content, kept so non-message room
+                # events (e.g. io.element.call.encryption_keys, which
+                # FluffyChat sends as a room event) are usable by callers
+                # that look past text. Additive; text consumers read body.
+                type = dec$type,
+                content = ct,
                 body = ct$body,
                 msgtype = ct$msgtype,
                 mentions = ct$`m.mentions`$user_ids

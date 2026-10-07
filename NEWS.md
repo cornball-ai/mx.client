@@ -1,10 +1,22 @@
 # mx.client 0.2.1.2
 
-* Fix: `io.element.call.encryption_keys` carries `keys` as an array of
-  `{index, key}`. `mx_call_key_content()` and `mx_call_key_parse()`
-  treated it as a single object, so real key events (parsed off the wire
-  with `simplifyVector = FALSE`) were dropped and call audio decrypted to
-  silence. The parser now reads the array and returns one entry per key.
+* Fix: make MatrixRTC call encryption keys actually work, found during
+  the first live FluffyChat-to-bot call (the bot heard only undecryptable
+  silence).
+  - `keys` is an array of `{index, key}`, not a single object;
+    `mx_call_key_content()` and `mx_call_key_parse()` treated it as one,
+    so real key events (parsed off the wire with `simplifyVector =
+    FALSE`) were dropped. The parser now reads the array and returns one
+    entry per key.
+  - FluffyChat / matrix-dart-sdk sends the key as an encrypted ROOM
+    event (top-level `device_id`), not to-device. `mx_crypto_process_sync()`
+    now keeps each decrypted room event's `type` and `content`,
+    `mx_call_handle()` reads call keys from `processed$events` as well as
+    `to_device`, and `mx_call_key_parse()` accepts the room-event shape
+    (top-level `device_id`, room taken from the event).
+  - `mx_call_send_key()` also posts the key as an encrypted room event so
+    FluffyChat can decrypt the bot; `mx_send_encrypted()` gained an
+    `event_type` argument.
 
 # mx.client 0.2.1.1
 
