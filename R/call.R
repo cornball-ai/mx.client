@@ -590,6 +590,12 @@ mx_call_handle <- function(call, sync, processed = NULL) {
                            processed$events %||% list()))
     for (ev in key_events) {
         for (parsed in mx_call_key_parse(ev, call$room_id)) {
+            # Our own key, posted as a room event, echoes back through our
+            # sync; it is not a peer key and must not be applied to our own
+            # participant slot.
+            if (identical(parsed$identity, call$identity)) {
+                next
+            }
             mx_call_apply_peer_key(call, parsed)
             received <- c(received, parsed$identity)
         }

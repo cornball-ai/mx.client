@@ -344,7 +344,12 @@ local({
             list(type = "io.element.call.encryption_keys", sender = "@d:ex",
                  room_id = "!elsewhere:example.org",
                  content = list(device_id = "X",
-                     keys = list(list(index = 9, key = "AAA="))))))
+                     keys = list(list(index = 9, key = "AAA=")))),
+            # Our own key, echoed back through our sync: must be skipped.
+            list(type = "io.element.call.encryption_keys",
+                 sender = "@bot:example.org", room_id = ROOM,
+                 content = list(device_id = "BOTDEV",
+                     keys = list(list(index = 7, key = "AAECAwQFBgcICQoLDA0ODw"))))))
     quiet <- list(rooms = list(join = list()))
     res <- mx_call_handle(call, quiet, processed)
     expect_identical(sort(res$keys),
@@ -354,6 +359,9 @@ local({
                      c("@alice:example.org:PHONE", "@bob:example.org:LAPTOP"))
     expect_identical(call$keys$peers[["@alice:example.org:PHONE"]]$index, 2L)
     expect_identical(call$keys$peers[["@bob:example.org:LAPTOP"]]$index, 4L)
+    # Our own echoed key was not applied as a peer.
+    expect_false("@bot:example.org:BOTDEV" %in% res$keys)
+    expect_null(call$keys$peers[["@bot:example.org:BOTDEV"]])
 
     # A membership event in the room's timeline triggers a state refresh
     with_state <- list(rooms = list(join = stats::setNames(list(list(
