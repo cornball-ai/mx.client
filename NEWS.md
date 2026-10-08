@@ -1,3 +1,22 @@
+# mx.client 0.2.1.3
+
+* Fix: keep every inbound Olm session per peer, not just the latest. A
+  peer can open several Olm sessions to us over its lifetime and reply on
+  any of them; the single inbound slot per peer was overwritten by each
+  new session, so a message sent on a session we had replaced could not be
+  decrypted and was dropped. Found when a FluffyChat MatrixRTC call key
+  arrived on a session the bot had since replaced, leaving the caller's
+  audio undecryptable (`MISSING_KEY`). `olm_in` now holds a list of
+  sessions per peer Curve25519 key; `mx_crypto_process_sync()` appends new
+  inbound sessions instead of replacing, and `olm_receive()` tries them
+  all (plus the outbound session) on receive. Stores written with one
+  session per peer load unchanged (the bare entry becomes a one-element
+  list).
+* The "cannot decrypt Olm to-device message" warning now reports the
+  message type and how many sessions were tried, and includes the
+  `create_inbound` error for a failed prekey, so a dropped message is
+  diagnosable instead of silent.
+
 # mx.client 0.2.1.2
 
 * Fix: make MatrixRTC call encryption keys actually work, found during
