@@ -7,7 +7,12 @@
 #
 # A session set is a list with five named maps:
 #   olm        peer Curve25519 -> outbound Olm session (we encrypt to them)
-#   olm_in     peer Curve25519 -> inbound Olm session  (they encrypt to us)
+#   olm_in     peer Curve25519 -> list of inbound Olm sessions (they encrypt
+#                                 to us). A peer may open several sessions to
+#                                 us over its lifetime and reply on any of
+#                                 them, so we keep every one and try them all
+#                                 on receive; a single slot would drop a
+#                                 message sent on a session we had replaced.
 #   megolm_out room id          -> list(session, shared = peer curves)
 #   megolm_in  "room|session_id" -> list(session, sender, sender_ed25519,
 #                                        sender_bound)
@@ -60,8 +65,8 @@ mx_crypto_sessions_save <- function(sessions, store_dir) {
                  olm = lapply(sessions$olm, function(s) {
         mx.crypto::mxc_olm_session_pickle(s, key)
     }),
-                 olm_in = lapply(sessions$olm_in, function(s) {
-        mx.crypto::mxc_olm_session_pickle(s, key)
+                 olm_in = lapply(sessions$olm_in, function(slist) {
+        lapply(slist, function(s) mx.crypto::mxc_olm_session_pickle(s, key))
     }),
                  megolm_out = lapply(sessions$megolm_out, function(m) {
         list(session = mx.crypto::mxc_megolm_outbound_pickle(m$session, key),
@@ -111,8 +116,13 @@ mx_crypto_sessions_load <- function(store_dir) {
         out$olm[[nm]] <- mx.crypto::mxc_olm_session_unpickle(blob$olm[[nm]], key)
     }
     for (nm in names(blob$olm_in %||% list())) {
-        out$olm_in[[nm]] <- mx.crypto::mxc_olm_session_unpickle(
-            blob$olm_in[[nm]], key)
+        # A store written before olm_in became a list holds a bare pickle
+        # string per peer; wrap it so the in-memory shape is always a list.
+        v <- blob$olm_in[[nm]]
+        pickles <- if (is.list(v)) v else list(v)
+        out$olm_in[[nm]] <- lapply(pickles, function(p) {
+            mx.crypto::mxc_olm_session_unpickle(p, key)
+        })
     }
     for (nm in names(blob$megolm_out %||% list())) {
         m <- blob$megolm_out[[nm]]
@@ -282,7 +292,9 @@ mx_crypto_encrypt_for_devices <- function(account, sessions, room_id,
 #'   \code{is_self} tagging and as the recipient of key requests.
 #' @param self_device_id Character or NULL. This device id. Both this and
 #'   \code{self_id} are required to create room-key requests.
-#' @return List with \code{events} (decrypted, normalized), updated
+#' @return List with \code{events} (decrypted, normalized; each also
+#'   carries its inner \code{type} and \code{content}, so non-message
+#'   room events such as call encryption keys are usable), updated
 #'   \code{verification_events} (original verification envelopes, separated
 #'   from chat messages; no handshake or network side effect is performed),
 #'   \code{sessions}, unsent \code{key_requests}, matching
@@ -343,11 +355,17 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
             next
         }
         sender <- ev$content$sender_key
+        # Try every inbound session we hold for this peer, then the outbound
+        # one (Olm sessions are bidirectional). Keeping all of them is what
+        # lets a reply decrypt when the peer picked a session we would
+        # otherwise have overwritten.
         res <- olm_receive(account, sender, msg,
-            list(sessions$olm_in[[sender]], sessions$olm[[sender]]))
+            c(sessions$olm_in[[sender]] %||% list(),
+              list(sessions$olm[[sender]])))
         if (is.null(res)) next
         if (res$new) {
-            sessions$olm_in[[sender]] <- res$session
+            sessions$olm_in[[sender]] <- c(sessions$olm_in[[sender]] %||% list(),
+                                           list(res$session))
         }
         decoded <- olm_decode(res$plaintext)
         if (is.null(decoded)) next
@@ -536,6 +554,12 @@ mx_crypto_process_sync <- function(account, sessions, sync_resp,
                 sender = ev$sender,
                 sender_verified = verified,
                 is_self = isTRUE(ev$sender == self_id),
+                # The inner type and content, kept so non-message room
+                # events (e.g. io.element.call.encryption_keys, which
+                # FluffyChat sends as a room event) are usable by callers
+                # that look past text. Additive; text consumers read body.
+                type = dec$type,
+                content = ct,
                 body = ct$body,
                 msgtype = ct$msgtype,
                 mentions = ct$`m.mentions`$user_ids

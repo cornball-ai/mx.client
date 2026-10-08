@@ -174,10 +174,18 @@ mx_call_b64_decode <- function(x) {
 # Content of a key event: the key the receiver should use for this
 # device's media. FluffyChat casts every field but sent_ts, so all of them
 # are always present.
+# A superset that both consumers accept: FluffyChat / matrix-dart-sdk
+# reads top-level call_id + device_id + keys (it sends and expects the key
+# as a room event); Element Call reads member + keys (to-device). Sending
+# this one object by either transport reaches both.
 mx_call_key_content <- function(key, index, user_id, device_id, room_id,
                                 now = Sys.time()) {
     list(
-         keys = list(index = as.integer(index), key = mx_call_b64(key)),
+         call_id = "",
+         device_id = device_id,
+         # keys is an array of {index, key}; the wrapping list makes JSON
+         # serialize it as an array even with a single entry.
+         keys = list(list(index = as.integer(index), key = mx_call_b64(key))),
          member = list(id = mx_call_identity(user_id, device_id),
                        claimed_device_id = device_id),
          room_id = room_id,
@@ -186,40 +194,81 @@ mx_call_key_content <- function(key, index, user_id, device_id, room_id,
     )
 }
 
+# Normalize the content's `keys` field to a list of {index, key}. The
+# wire sends an array; depending on how the Olm plaintext was parsed it
+# arrives as an unnamed list of objects (simplifyVector = FALSE), a data
+# frame (simplifyVector = TRUE), and we also tolerate a single {index,
+# key} object from a non-conformant sender.
+mx_call_key_entries <- function(keys) {
+    if (is.null(keys)) {
+        return(list())
+    }
+    if (is.data.frame(keys)) {
+        return(lapply(seq_len(nrow(keys)), function(i) {
+            list(index = keys$index[[i]], key = keys$key[[i]])
+        }))
+    }
+    if (!is.null(names(keys)) && !is.null(keys$index)) {
+        return(list(list(index = keys$index, key = keys$key)))
+    }
+    if (is.list(keys)) {
+        return(Filter(function(e) is.list(e) && !is.null(e$index), keys))
+    }
+    list()
+}
+
 #' Read a call key event
 #'
 #' Parses a decrypted \code{io.element.call.encryption_keys} to-device
 #' event (from the \code{to_device} list of
-#' \code{\link{mx_crypto_process_sync}}) into the LiveKit identity it
-#' belongs to and the key to set for it.
+#' \code{\link{mx_crypto_process_sync}}) into the LiveKit identities and
+#' keys to set. The event's \code{keys} field is an array, so one event
+#' can carry several keys at different indices; each becomes one entry.
 #'
 #' @param event List with \code{type}, \code{content} and \code{sender}.
 #' @param room_id The call's room; keys for other rooms are ignored.
-#' @return \code{list(identity, key, index)}, with \code{key} a raw
-#'   vector, or NULL when the event is not a usable key for this room.
+#' @return A list of \code{list(identity, key, index)}, with \code{key} a
+#'   raw vector, one per usable key in the event; empty when the event is
+#'   not a usable key for this room.
 #' @examples
 #' ev <- list(type = "io.element.call.encryption_keys",
 #'     sender = "@alice:example.org",
-#'     content = list(keys = list(index = 3, key = "AAECAwQFBgcICQoLDA0ODw=="),
+#'     content = list(
+#'         keys = list(list(index = 3, key = "AAECAwQFBgcICQoLDA0ODw==")),
 #'         member = list(claimed_device_id = "PHONE"), room_id = "!r:example.org"))
 #' mx_call_key_parse(ev, "!r:example.org")
 #' @export
 mx_call_key_parse <- function(event, room_id) {
-    if (!identical(event$type, MX_CALL_KEYS)) return(NULL)
+    if (!identical(event$type, MX_CALL_KEYS)) return(list())
     c <- event$content
-    if (!identical(c$room_id, room_id)) return(NULL)
-    device <- c$member$claimed_device_id
-    index <- c$keys$index
-    key <- c$keys$key
+    # A to-device event names its room in the content; a room event does
+    # not (its room is the event's own, matched by the caller). Enforce
+    # content$room_id only when it is present.
+    if (!is.null(c$room_id) && !identical(c$room_id, room_id)) return(list())
+    # Element Call uses member$claimed_device_id; FluffyChat uses a
+    # top-level device_id.
+    device <- c$member$claimed_device_id %||% c$device_id
     if (!is.character(event$sender) || !is.character(device) ||
-        !nzchar(device) || !is.numeric(index) || length(index) != 1L ||
-        index < 0 || index != floor(index) || !is.character(key)) {
-        return(NULL)
+        !nzchar(device)) {
+        return(list())
     }
-    bytes <- tryCatch(mx_call_b64_decode(key), error = function(e) NULL)
-    if (is.null(bytes) || !length(bytes)) return(NULL)
-    list(identity = mx_call_identity(event$sender, device), key = bytes,
-         index = as.integer(index))
+    identity <- mx_call_identity(event$sender, device)
+    out <- list()
+    for (k in mx_call_key_entries(c$keys)) {
+        index <- k$index
+        key <- k$key
+        if (!is.numeric(index) || length(index) != 1L || index < 0 ||
+            index != floor(index) || !is.character(key) || length(key) != 1L) {
+            next
+        }
+        bytes <- tryCatch(mx_call_b64_decode(key), error = function(e) NULL)
+        if (is.null(bytes) || !length(bytes)) {
+            next
+        }
+        out[[length(out) + 1L]] <- list(identity = identity, key = bytes,
+                                        index = as.integer(index))
+    }
+    out
 }
 
 # The key state of one call: our key and index, when the key was made,
@@ -334,6 +383,19 @@ mx_call_send_key <- function(call, targets) {
         }, "")
         call$keys$shared_with <- union(call$keys$shared_with,
                                        intersect(targets, reached))
+        # FluffyChat / matrix-dart-sdk reads the key from an encrypted
+        # ROOM event, not to-device, so also post it there. Guarded: a
+        # failure here must not break the to-device path or the call.
+        tryCatch({
+            user_ids <- unique(sub(":[^:]+$", "", targets))
+            room_res <- mx_send_encrypted(call$client, call$account,
+                call$sessions, call$room_id, content, call$store_dir,
+                member_ids = user_ids, event_type = MX_CALL_KEYS)
+            call$sessions <- room_res$sessions
+        }, error = function(e) {
+            warning("mx.client: could not post the call key as a room event: ",
+                    conditionMessage(e), call. = FALSE)
+        })
     }
     if (!is.null(call$session)) {
         livekitr::lk_set_e2ee_key(call$session, call$keys$key,
@@ -520,9 +582,20 @@ mx_call_handle <- function(call, sync, processed = NULL) {
         call$sessions <- processed$sessions
     }
     received <- character()
-    for (ev in processed$to_device %||% list()) {
-        parsed <- mx_call_key_parse(ev, call$room_id)
-        if (!is.null(parsed)) {
+    # Call keys arrive two ways: Element Call sends them to-device, while
+    # FluffyChat / matrix-dart-sdk sends them as an encrypted ROOM event
+    # (surfaced in processed$events with its type and content). Read both.
+    key_events <- c(processed$to_device %||% list(),
+                    Filter(function(ev) identical(ev$room_id, call$room_id),
+                           processed$events %||% list()))
+    for (ev in key_events) {
+        for (parsed in mx_call_key_parse(ev, call$room_id)) {
+            # Our own key, posted as a room event, echoes back through our
+            # sync; it is not a peer key and must not be applied to our own
+            # participant slot.
+            if (identical(parsed$identity, call$identity)) {
+                next
+            }
             mx_call_apply_peer_key(call, parsed)
             received <- c(received, parsed$identity)
         }

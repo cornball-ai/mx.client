@@ -40,7 +40,9 @@ local \code{self_master_key}; they never verify the original sender.}
 \code{self_id} are required to create room-key requests.}
 }
 \value{
-List with \code{events} (decrypted, normalized), updated
+List with \code{events} (decrypted, normalized; each also
+  carries its inner \code{type} and \code{content}, so non-message
+  room events such as call encryption keys are usable), updated
   \code{verification_events} (original verification envelopes, separated
   from chat messages; no handshake or network side effect is performed),
   \code{sessions}, unsent \code{key_requests}, matching
