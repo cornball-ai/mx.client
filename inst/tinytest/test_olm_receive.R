@@ -74,9 +74,9 @@ local({
                 f$ak$curve25519,
                 mx.crypto::mxc_account_one_time_keys(f$alice)[[1L]])
             pre <- mx.crypto::mxc_olm_encrypt(other, charToRaw("other session"))
-            sessions$olm_in[[f$bk$curve25519]] <-
+            sessions$olm_in[[f$bk$curve25519]] <- list(
                 mx.crypto::mxc_olm_create_inbound(f$alice,
-                    f$bk$curve25519, pre$body)$session
+                    f$bk$curve25519, pre$body)$session)
         }
         msg <- share(f$inc, f$bk, f$ak, bob_id, alice_id)
         expect_identical(msg$content$ciphertext[[f$ak$curve25519]]$type, 1L)
@@ -120,7 +120,7 @@ local({
     # session remain prekey messages. Bob's OTK has already been consumed.
     f <- pair()
     sessions <- mx_crypto_sessions_new()
-    sessions$olm_in[[f$ak$curve25519]] <- f$inc
+    sessions$olm_in[[f$ak$curve25519]] <- list(f$inc)
     msg <- share(f$out, f$ak, f$bk, alice_id, bob_id, "second prekey")
     expect_identical(msg$content$ciphertext[[f$bk$curve25519]]$type, 0L)
     expect_equal(length(mx.crypto::mxc_account_one_time_keys(f$bob)), 0L)
@@ -129,7 +129,8 @@ local({
     if (!inherits(res, "error")) {
         expect_equal(length(res$events), 1L)
         expect_true(msg$key %in% names(res$sessions$megolm_in))
-        expect_identical(res$sessions$olm_in[[f$ak$curve25519]], f$inc)
+        expect_equal(length(res$sessions$olm_in[[f$ak$curve25519]]), 1L)
+        expect_identical(res$sessions$olm_in[[f$ak$curve25519]][[1L]], f$inc)
 
         # Exact replay cannot decrypt twice, but it must not abort the batch
         # or prevent a later valid prekey message from installing its key.
@@ -189,25 +190,28 @@ local({
     msg <- share(f$out, f$ak, f$bk, alice_id, bob_id)
     expect_identical(msg$content$ciphertext[[f$bk$curve25519]]$type, 1L)
     sessions <- mx_crypto_sessions_new()
-    sessions$olm_in[[f$ak$curve25519]] <- f$inc
+    sessions$olm_in[[f$ak$curve25519]] <- list(f$inc)
     res <- process(f, sessions, list(msg), alice = FALSE)
     expect_false(inherits(res, "error"))
     if (!inherits(res, "error")) expect_equal(length(res$events), 1L)
 
     # A genuinely new prekey session still opens after all existing
-    # sessions fail, replacing only the inbound entry for that peer.
+    # sessions fail, and is kept alongside the peer's existing inbound
+    # sessions rather than replacing them, so a later message on either
+    # session still decrypts.
     f <- pair()
     mx.crypto::mxc_account_generate_one_time_keys(f$bob, 1L)
     fresh <- mx.crypto::mxc_olm_create_outbound(f$alice, f$bk$curve25519,
         mx.crypto::mxc_account_one_time_keys(f$bob)[[1L]])
     msg <- share(fresh, f$ak, f$bk, alice_id, bob_id)
     sessions <- mx_crypto_sessions_new()
-    sessions$olm_in[[f$ak$curve25519]] <- f$inc
+    sessions$olm_in[[f$ak$curve25519]] <- list(f$inc)
     res <- process(f, sessions, list(msg), alice = FALSE)
     expect_false(inherits(res, "error"))
     if (!inherits(res, "error")) {
         expect_equal(length(res$events), 1L)
-        expect_false(identical(res$sessions$olm_in[[f$ak$curve25519]], f$inc))
+        expect_equal(length(res$sessions$olm_in[[f$ak$curve25519]]), 2L)
+        expect_identical(res$sessions$olm_in[[f$ak$curve25519]][[1L]], f$inc)
         expect_equal(length(mx.crypto::mxc_account_one_time_keys(f$bob)), 0L)
     }
 
@@ -268,5 +272,57 @@ local({
             f$bob, f$bk$curve25519, malformed, self_id = bob_id,
             olm_sessions = list(f$inc)), "malformed Olm to-device")
         expect_null(result)
+    }
+
+    # Regression (the MatrixRTC call-key failure): a peer opens a second
+    # session to us, and later replies on the FIRST. The first inbound
+    # session must be kept, not overwritten by the second, or the reply is
+    # dropped. Its one-time key is long spent, so a single-slot store that
+    # had replaced it could not reopen it either.
+    f <- pair()                                   # Alice O1 -> Bob I1 (f$inc)
+    sessions <- mx_crypto_sessions_new()
+    sessions$olm_in[[f$ak$curve25519]] <- list(f$inc)
+    mx.crypto::mxc_account_generate_one_time_keys(f$bob, 1L)
+    o2 <- mx.crypto::mxc_olm_create_outbound(f$alice, f$bk$curve25519,
+        mx.crypto::mxc_account_one_time_keys(f$bob)[[1L]])
+    m2 <- share(o2, f$ak, f$bk, alice_id, bob_id, "on second session")
+    expect_identical(m2$content$ciphertext[[f$bk$curve25519]]$type, 0L)
+    res <- process(f, sessions, list(m2), alice = FALSE)
+    expect_false(inherits(res, "error"))
+    if (!inherits(res, "error")) {
+        expect_equal(length(res$sessions$olm_in[[f$ak$curve25519]]), 2L)
+        m1 <- share(f$out, f$ak, f$bk, alice_id, bob_id, "back on first")
+        res1 <- process(f, res$sessions, list(m1), alice = FALSE)
+        expect_false(inherits(res1, "error"))
+        if (!inherits(res1, "error")) {
+            expect_equal(length(res1$events), 1L)
+            if (length(res1$events)) {
+                expect_identical(res1$events[[1L]]$body, "back on first")
+            }
+        }
+    }
+
+    # Backward compatibility: a store written before olm_in was a list holds
+    # one bare pickle string per peer. It loads into a one-element list and
+    # the session still decrypts.
+    f <- pair()
+    sessions <- mx_crypto_sessions_new()
+    sessions$olm_in[[f$ak$curve25519]] <- list(f$inc)
+    store2 <- tempfile("olm-legacy-")
+    on.exit(unlink(store2, recursive = TRUE), add = TRUE)
+    mx_crypto_sessions_save(sessions, store2)
+    path <- file.path(store2, "sessions.json")
+    blob <- jsonlite::fromJSON(paste(readLines(path, warn = FALSE),
+                                     collapse = "\n"), simplifyVector = FALSE)
+    blob$olm_in[[f$ak$curve25519]] <- blob$olm_in[[f$ak$curve25519]][[1L]]
+    writeLines(jsonlite::toJSON(blob, auto_unbox = TRUE), path)
+    reloaded <- mx_crypto_sessions_load(store2)
+    expect_true(is.list(reloaded$olm_in[[f$ak$curve25519]]))
+    expect_equal(length(reloaded$olm_in[[f$ak$curve25519]]), 1L)
+    legacy_msg <- share(f$out, f$ak, f$bk, alice_id, bob_id, "legacy reload")
+    legacy_res <- process(f, reloaded, list(legacy_msg), alice = FALSE)
+    expect_false(inherits(legacy_res, "error"))
+    if (!inherits(legacy_res, "error")) {
+        expect_equal(length(legacy_res$events), 1L)
     }
 })
