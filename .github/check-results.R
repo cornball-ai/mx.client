@@ -16,7 +16,7 @@ cat("Testing checked build:", find.package(pkg), expected, "\n")
 cat("Crypto build:", find.package("mx.crypto"),
     as.character(utils::packageVersion("mx.crypto")), "\n")
 for (file in c("test_sas.R", "test_sas_identity.R", "test_sas_own_device.R",
-    "test_sas_transport.R", "test_user_verification.R")) {
+    "test_sas_transport.R", "test_user_verification.R", "test_encrypted_media.R")) {
     result <- tinytest::run_test_file(file.path("inst", "tinytest", file),
         at_home = FALSE, verbose = 0, color = FALSE)
     print(result)
