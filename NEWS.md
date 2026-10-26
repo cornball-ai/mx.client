@@ -1,3 +1,12 @@
+# mx.client 0.2.1.4
+
+- Add encrypted attachment upload and verified download helpers using
+  mx.crypto's Matrix v2 primitives. Uploads expose only ciphertext with a
+  generic filename; downloads verify integrity before replacing the destination.
+- Refuse plaintext `mx_send_media()` uploads to encrypted rooms before
+  transferring any file. Callers retain ownership of their live crypto sessions
+  and send the returned attachment metadata through `mx_send_encrypted()`.
+
 # mx.client 0.2.1.3
 
 * Fix: keep every inbound Olm session per peer, not just the latest. A
