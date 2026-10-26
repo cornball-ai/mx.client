@@ -542,7 +542,9 @@ mx_extract_reaction_verdict <- function(sync_resp, room_id, self_id,
 #'
 #' Client-layer wrapper over \code{mx.api::mx_send_media()}: resolves the
 #' room by name (or falls back to the config's default room), builds the
-#' session from the client config, and uploads + posts in one call. The
+#' session from the client config, and uploads + posts in one call. Refuses
+#' encrypted rooms before upload; use \code{mx_upload_encrypted()} followed
+#' by \code{mx_send_encrypted()} with the caller's live crypto context. The
 #' msgtype is derived from the file's MIME type unless given.
 #'
 #' If you attach mx.api and mx.client together, namespace-qualify -- the
@@ -577,6 +579,10 @@ mx_send_media <- function(client, path, room = NULL, body = basename(path),
                 "] ===\n", path, " (",
                 content_type %||% mx.api::mx_guess_mime(path), ")")
         return(invisible(NULL))
+    }
+    if (mx_room_encrypted(client, rid)) {
+        stop("mx.client: encrypted room requires mx_upload_encrypted() and ",
+             "mx_send_encrypted(); no file was uploaded", call. = FALSE)
     }
     mx.api::mx_send_media(mx_client_session(client), rid, path,
                           body = body, msgtype = msgtype,

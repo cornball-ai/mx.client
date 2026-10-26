@@ -28,7 +28,7 @@ Imports:
     utils
 Suggests:
     livekitr,
-    mx.crypto (>= 0.2.2),
+    mx.crypto (>= 0.2.2.2),
     simplermarkdown,
     tinytest
 VignetteBuilder: simplermarkdown

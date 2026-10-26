@@ -42,7 +42,9 @@ Event id, or NULL on dry-run.
 \description{
 Client-layer wrapper over \code{mx.api::mx_send_media()}: resolves the
 room by name (or falls back to the config's default room), builds the
-session from the client config, and uploads + posts in one call. The
+session from the client config, and uploads + posts in one call. Refuses
+encrypted rooms before upload; use \code{mx_upload_encrypted()} followed
+by \code{mx_send_encrypted()} with the caller's live crypto context. The
 msgtype is derived from the file's MIME type unless given.
 }
 \details{
