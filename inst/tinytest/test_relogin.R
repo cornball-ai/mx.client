@@ -42,3 +42,41 @@ expect_equal(names(formals(mx.client::mx_set_displayname)),
 expect_error(mx.client::mx_set_displayname(cl, ""), "non-empty")
 expect_error(mx.client::mx_set_displayname(cl, c("a", "b")), "single")
 expect_error(mx.client::mx_set_displayname(cl, NA_character_), "non-empty")
+
+# mx_set_displayname returns the client it ended up using (#18): the same
+# client when the token holds, the refreshed one after a relogin.
+local({
+  old_name <- mx.api::mx_set_displayname
+  old_login <- mx.api::mx_login
+  on.exit({
+    assignInNamespace("mx_set_displayname", old_name, ns = "mx.api")
+    assignInNamespace("mx_login", old_login, ns = "mx.api")
+  })
+  tokens <- character()
+  assignInNamespace("mx_set_displayname", function(session, name) {
+    tokens <<- c(tokens, session$token)
+    if (identical(session$token, "t")) token_err(NULL)
+    invisible(TRUE)
+  }, ns = "mx.api")
+  assignInNamespace("mx_login", function(server, user, password, device_id = NULL) {
+    list(token = "fresh", user_id = "@bot:x", device_id = "DEV")
+  }, ns = "mx.api")
+
+  good <- mx_client_from_config(list(server = "https://x", user = "bot",
+                                     token = "live", user_id = "@bot:x",
+                                     device_id = "DEV", room_id = "!r:x"))
+  out <- withVisible(mx.client::mx_set_displayname(good, "bot"))
+  expect_false(out$visible)
+  expect_equal(out$value$token, "live")
+
+  stale <- mx_client_from_config(list(server = "https://x", user = "bot",
+                                      password = "pw", token = "t",
+                                      user_id = "@bot:x", device_id = "DEV",
+                                      room_id = "!r:x"))
+  expect_message(
+    refreshed <- mx.client::mx_set_displayname(stale, "bot", save = FALSE),
+    "re-logging in"
+  )
+  expect_equal(refreshed$token, "fresh")
+  expect_equal(tokens, c("live", "t", "fresh"))
+})

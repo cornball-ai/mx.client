@@ -13,6 +13,13 @@
 #' @param max_bytes Maximum plaintext size in bytes, default 25 MiB. Encryption
 #'   uses memory; larger files require an explicit higher limit.
 #' @return Matrix message content with \code{file} instead of \code{url}.
+#' @examples
+#' \dontrun{
+#' # Needs a live homeserver and an encrypted room:
+#' content <- mx_upload_encrypted(client, file.path(tempdir(), "notes.pdf"))
+#' mx_send_encrypted(client, acct, sessions, "!room:example.org", content,
+#'                   store_dir = store)
+#' }
 #' @export
 mx_upload_encrypted <- function(client, path, body = basename(path),
                                 msgtype = NULL, content_type = NULL,
@@ -64,6 +71,12 @@ mx_upload_encrypted <- function(client, path, body = basename(path),
 #' @param max_bytes Maximum downloaded size to read into memory, default 25
 #'   MiB. This is checked on disk before decryption, not a network transfer cap.
 #' @return Destination path, invisibly.
+#' @examples
+#' \dontrun{
+#' # `content` is a decrypted m.room.message from a live encrypted room:
+#' mx_download_encrypted(client, content$file,
+#'                       file.path(tempdir(), content$body))
+#' }
 #' @export
 mx_download_encrypted <- function(client, file, dest,
                                   max_bytes = 25 * 1024^2) {
@@ -97,7 +110,7 @@ mx_require_attachment_crypto <- function() {
     if (!requireNamespace("mx.crypto", quietly = TRUE) ||
         !all(c("mxc_attachment_encrypt", "mxc_attachment_decrypt") %in%
              getNamespaceExports("mx.crypto"))) {
-        stop("mx.client: encrypted attachments require mx.crypto >= 0.2.2.2",
+        stop("mx.client: encrypted attachments require mx.crypto >= 0.3.0",
              call. = FALSE)
     }
 }

@@ -14,12 +14,14 @@
 #' @param name Character. New display name.
 #' @param save Logical. On a relogin, persist the refreshed token to the
 #'   client's config path (see \code{\link{mx_client_relogin}}).
-#' @return TRUE, invisibly.
+#' @return The client config, invisibly. After a relogin this is the
+#'   refreshed client carrying the new token; keep it in place of the one
+#'   passed in. Without a relogin it is \code{client} unchanged.
 #' @examples
 #' \dontrun{
 #' # A real rename needs a live homeserver session:
 #' client <- mx_client_load("myapp")
-#' mx_set_displayname(client, "mybot (maintenance)")
+#' client <- mx_set_displayname(client, "mybot (maintenance)")
 #' }
 #' @export
 mx_set_displayname <- function(client, name, save = TRUE) {
@@ -27,8 +29,9 @@ mx_set_displayname <- function(client, name, save = TRUE) {
         !nzchar(name)) {
         stop("name must be a single non-empty string", call. = FALSE)
     }
-    mx_with_relogin(client, function(cl) {
+    refreshed <- mx_with_relogin(client, function(cl) {
         mx.api::mx_set_displayname(mx_client_session(cl), name)
+        cl
     }, save = save)
-    invisible(TRUE)
+    invisible(refreshed)
 }

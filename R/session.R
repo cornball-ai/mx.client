@@ -117,6 +117,12 @@ mx_client_relogin <- function(client, save = TRUE) {
 #' mx.api >= 0.3.0), re-logs in via \code{\link{mx_client_relogin}} and
 #' retries once with the refreshed client. Any other error propagates.
 #'
+#' With \code{save = TRUE} the refreshed config is written before the
+#' retry. If the retry then fails, the new token is already on disk while
+#' the caller still holds the rejected one; reload the config with
+#' \code{\link{mx_client_load}} after such an error. To keep the refreshed
+#' client on success, have \code{fn} return its argument.
+#'
 #' @param client Matrix client config with \code{password}.
 #' @param fn Function taking a client config.
 #' @param save Logical. Persist the refreshed config on relogin.

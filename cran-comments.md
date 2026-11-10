@@ -2,75 +2,61 @@
 
 ## Submission
 
-Update from CRAN version 0.2.0 to 0.2.1.
+Update from CRAN version 0.2.1 to 0.3.0.
 
-The Windows pre-flight candidate was numbered 0.3.0. It has been renumbered
-to 0.2.1 for submission; its R code, examples, tests, and dependencies are unchanged.
+This release adds encrypted attachment upload and verified download
+(`mx_upload_encrypted()`, `mx_download_encrypted()`) and Olm-encrypted
+to-device events of any type (`mx_send_to_device_encrypted()`,
+`mx_crypto_encrypt_to_device()`). It fixes the loss of inbound Olm
+messages sent on a session the peer had opened earlier, and
+`mx_set_displayname()` now returns the client it used so a caller can
+keep a refreshed token.
 
-This release adds interactive Matrix Short Authentication String (SAS)
-verification, cross-signing bootstrap and pinned identity verification,
-room-key requests and recovery, threaded messages, and richer sync-event
-extraction. It fixes reception of Olm replies on locally initiated sessions,
-rejects encrypted sends when no intended recipient can receive a key, and
-validates crypto-store schema versions without changing the raw account
-pickle format. Existing stores remain readable.
-
-The mandatory mx.api floor is 0.3.0.2; CRAN version 0.3.1 satisfies it.
-The optional mx.crypto floor is 0.2.2, now on CRAN, for SAS primitives.
-Unencrypted client operations still work without mx.crypto.
+The mandatory mx.api floor is unchanged at 0.3.0.2. The optional
+mx.crypto floor rises to 0.3.0, now on CRAN, for the attachment
+primitives. All dependencies are on CRAN. Unencrypted client operations
+still work without mx.crypto.
 
 ## API and compatibility
 
-No exports were removed or renamed. Existing functions gain optional
-arguments; newly added functions cover SAS, cross-signing, key-request
-bookkeeping, identity trust, and event extraction.
+No exports were removed or renamed. `mx_send_encrypted()` gains an
+optional `event_type` argument. `mx_crypto_process_sync()` adds a
+`to_device` element to its result and keeps each decrypted room event's
+`type` and `content`.
 
-Decryptable own encrypted messages are now returned with is_self = TRUE,
-as cleartext own messages already were. Forwarded room keys never mark
-the original event sender verified. Failed to-device decryption warns and
-skips the event instead of aborting the batch. Session stores gain a version
-field; legacy stores load, and account.pickle remains a raw encrypted pickle
-so older clients can continue to read it.
+`mx_set_displayname()` returned `TRUE` invisibly and now returns the
+client config invisibly. Neither reverse dependency uses the value.
+
+`mx_send_media()` now refuses a plaintext upload to an encrypted room.
+
+Session stores written by 0.2.1 load unchanged: a single inbound Olm
+session per peer becomes a one-element list.
 
 ## Test environments
 
-* Ubuntu 24.04.5, R 4.6.1: R CMD check --as-cran, including PDF and HTML
-  manuals, examples with --run-donttest, tests, and rebuilt vignettes.
-  Status: OK, 0 errors, 0 warnings, 0 notes.
-* Full source suite: 792 assertions passed with mx.crypto 0.2.2 and
-  mx.api 0.3.1. The 15 added or revised local examples also passed separately.
-* GitHub Actions: Ubuntu and macOS passed on the merged 0.2.0.11 code.
-  Release preparation changes only documentation and metadata; parsed R
-  expressions are unchanged across all 24 source files.
-* Windows R-devel (2026-09-10 r90519): Status OK, 682 test assertions.
-  Store-schema tests were skipped because the worker's mx.crypto version
-  was below 0.2.2. Report: https://win-builder.r-project.org/62jmaVSsW2vK/
-* Windows R-release 4.6.1: 1 error, 1 warning. The worker's mx.crypto lacked
-  the seven SAS exports, causing the dependency warning and SAS example
-  error. Only 466 test assertions ran; SAS and store-schema tests were
-  skipped. Report: https://win-builder.r-project.org/MvFXJ8kbX0Jp/
-* On 2026-09-11 CRAN listed mx.crypto 0.2.2 source but still 0.2.1 Windows
-  binaries. The Windows reports above used older dependencies and do not
-  establish full Windows coverage. The local check and full source suite
-  used the declared mx.crypto 0.2.2 dependency and passed.
+All local checks used a library built from CRAN source packages only.
 
-## Reverse dependency
+* Ubuntu 24.04.5, R 4.6.1: R CMD check --as-cran --run-donttest,
+  including PDF and HTML manuals, examples, tests, and rebuilt vignettes,
+  with mx.crypto 0.3.0 installed. Status: OK.
+* The same check with mx.crypto absent. Status: OK.
+* Installed test suite with an empty HOME: 873 assertions passed and no
+  file was written under HOME.
+* win-builder, Windows Server 2022, R-release 4.6.2: Status: OK, 872
+  test assertions passed.
+* win-builder R-devel (2026-11-07 r90850) installed the package and built
+  a binary, but its check log stopped at the incoming feasibility step
+  and reported no result.
+* GitHub Actions, ubuntu-latest and macos-latest, R 4.6: Status: OK.
+* R-oldrelease was not checked for this release.
 
-CRAN's corteza 0.7.1, a reverse Suggests dependency, was checked against
-both CRAN mx.client 0.2.0 and the 0.2.0.11 candidate underlying this release.
-Both runs passed installation, examples, tests, and vignette checks.
-Both had the same incoming-feasibility warning because corteza 0.7.1 is
-already on CRAN. There were no new errors or warnings from this update.
+## Reverse dependencies
+
+chat.api 0.1.0 and corteza 0.7.1, both reverse Suggests from CRAN, were
+checked against the 0.3.0 tarball. Both: Status: OK.
 
 ## Examples
 
-The new SAS examples use synthetic in-memory identities and exchanges.
-They do not connect to Matrix, inspect a user's crypto store, or upload
-trust. Explicit refusal examples demonstrate that cancelled or unconfirmed
-exchanges cannot grant trust. Local encrypt/decrypt examples are runnable.
-
-The new cross-signing bootstrap example remains in \dontrun because it
-requires account credentials, the existing device store, and a live Matrix
-homeserver. Actual console verification additionally requires a human to
-compare values on trusted displays. Other network examples remain guarded;
-all executed example and test writes use temporary directories.
+The encrypted-media examples are in \dontrun because they need account
+credentials and a live Matrix homeserver. All executed example and test
+writes use temporary directories.

@@ -1,7 +1,7 @@
 library(mx.client)
 if (!requireNamespace("mx.crypto", quietly = TRUE) ||
     !"mxc_attachment_encrypt" %in% getNamespaceExports("mx.crypto")) {
-    exit_file("encrypted attachments require mx.crypto >= 0.2.2.2")
+    exit_file("encrypted attachments require mx.crypto >= 0.3.0")
 }
 local({
     root <- tempfile("media-test-")

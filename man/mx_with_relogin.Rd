@@ -21,6 +21,14 @@ error (\code{M_UNKNOWN_TOKEN}, signalled as a classed condition by
 mx.api >= 0.3.0), re-logs in via \code{\link{mx_client_relogin}} and
 retries once with the refreshed client. Any other error propagates.
 }
+\details{
+With \code{save = TRUE} the refreshed config is written before the
+retry. If the retry then fails, the new token is already on disk while
+the caller still holds the rejected one; reload the config with
+\code{\link{mx_client_load}} after such an error. To keep the refreshed
+client on success, have \code{fn} return its argument.
+
+}
 \examples{
 \dontrun{
 mx_with_relogin(client, function(cl) {

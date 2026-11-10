@@ -24,3 +24,10 @@ SHA-256 digest and decrypts it before replacing the destination. Failure
 leaves an existing destination unchanged. Metadata must come from an
 authenticated encrypted room event. Does not open a crypto store.
 }
+\examples{
+\dontrun{
+# `content` is a decrypted m.room.message from a live encrypted room:
+mx_download_encrypted(client, content$file,
+                      file.path(tempdir(), content$body))
+}
+}

@@ -14,7 +14,9 @@ mx_set_displayname(client, name, save = TRUE)
 client's config path (see \code{\link{mx_client_relogin}}).}
 }
 \value{
-TRUE, invisibly.
+The client config, invisibly. After a relogin this is the
+  refreshed client carrying the new token; keep it in place of the one
+  passed in. Without a relogin it is \code{client} unchanged.
 }
 \description{
 Client-level wrapper over \code{mx.api::mx_set_displayname()}: builds
@@ -27,6 +29,6 @@ line of every message the account posts.
 \dontrun{
 # A real rename needs a live homeserver session:
 client <- mx_client_load("myapp")
-mx_set_displayname(client, "mybot (maintenance)")
+client <- mx_set_displayname(client, "mybot (maintenance)")
 }
 }
