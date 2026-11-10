@@ -38,3 +38,11 @@ Returns content to pass to \code{mx_send_encrypted()} using the caller's
 existing account and sessions. The return value includes a secret key:
 never post it in an unencrypted event. Does not open a crypto store.
 }
+\examples{
+\dontrun{
+# Needs a live homeserver and an encrypted room:
+content <- mx_upload_encrypted(client, file.path(tempdir(), "notes.pdf"))
+mx_send_encrypted(client, acct, sessions, "!room:example.org", content,
+                  store_dir = store)
+}
+}

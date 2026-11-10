@@ -521,6 +521,13 @@ mx_call_join <- function(client, account, sessions, room_id,
 #' @param ... Further arguments to \code{livekitr::lk_connect()}, such
 #'   as \code{opts}.
 #' @return \code{call}, invisibly.
+#' @examples
+#' \dontrun{
+#' # Needs a live homeserver, a LiveKit service and the livekitr package:
+#' call <- mx_call_join(client, acct, sessions, "!room:example.org",
+#'                      connect = FALSE)
+#' mx_call_connect(call)
+#' }
 #' @export
 mx_call_connect <- function(call, ...) {
     mx_require_livekitr()
@@ -572,6 +579,14 @@ mx_call_e2ee_options <- function() {
 #' @return A list of what changed: \code{keys}, the identities whose
 #'   keys were received, and \code{members}, the current members when
 #'   membership changed (NULL otherwise).
+#' @examples
+#' \dontrun{
+#' # Inside an application's own sync loop, during a live call:
+#' res <- mx_sync_update(call$client, timeout = 0L)
+#' call$client <- res$client
+#' changed <- mx_call_handle(call, res$sync)
+#' changed$keys
+#' }
 #' @export
 mx_call_handle <- function(call, sync, processed = NULL) {
     if (is.null(processed)) {
@@ -643,6 +658,13 @@ mx_call_handle <- function(call, sync, processed = NULL) {
 #' @param timeout Seconds to let the sync long poll wait.
 #' @return The LiveKit events from \code{livekitr::lk_poll()}, or an
 #'   empty list when the call has no media session.
+#' @examples
+#' \dontrun{
+#' # Drive a live call for 30 seconds, then leave:
+#' until <- Sys.time() + 30
+#' while (Sys.time() < until) mx_call_poll(call)
+#' mx_call_leave(call)
+#' }
 #' @export
 mx_call_poll <- function(call, media_timeout = 0.5, timeout = 0) {
     events <- if (is.null(call$session)) {
@@ -663,6 +685,11 @@ mx_call_poll <- function(call, media_timeout = 0.5, timeout = 0) {
 #'
 #' @param call An \code{"mx_call"}.
 #' @return \code{NULL}, invisibly.
+#' @examples
+#' \dontrun{
+#' # Ends a call joined with mx_call_join() on a live homeserver:
+#' mx_call_leave(call)
+#' }
 #' @export
 mx_call_leave <- function(call) {
     if (!is.null(call$session)) {

@@ -21,3 +21,11 @@ end-to-end encryption configured as Element Call and FluffyChat
 expect (per-participant HKDF keys, a 256-slot key ring), and sets our
 key and every peer key received so far.
 }
+\examples{
+\dontrun{
+# Needs a live homeserver, a LiveKit service and the livekitr package:
+call <- mx_call_join(client, acct, sessions, "!room:example.org",
+                     connect = FALSE)
+mx_call_connect(call)
+}
+}

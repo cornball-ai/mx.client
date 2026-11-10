@@ -28,3 +28,12 @@ application already runs \code{\link{mx_crypto_process_sync}} on the
 response, pass its result as \code{processed} so to-device events
 are not decrypted twice.
 }
+\examples{
+\dontrun{
+# Inside an application's own sync loop, during a live call:
+res <- mx_sync_update(call$client, timeout = 0L)
+call$client <- res$client
+changed <- mx_call_handle(call, res$sync)
+changed$keys
+}
+}

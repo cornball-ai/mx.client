@@ -14,3 +14,9 @@ mx_call_leave(call)
 \description{
 Leaves the LiveKit room and clears this device's membership event.
 }
+\examples{
+\dontrun{
+# Ends a call joined with mx_call_join() on a live homeserver:
+mx_call_leave(call)
+}
+}

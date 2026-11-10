@@ -34,8 +34,8 @@ jobs:
       # older binary. The helper reads the floors from DESCRIPTION.
       - name: Install Matrix development dependencies
         env:
-          # mx.crypto 0.2.2.2, including Matrix v2 attachment primitives.
-          MX_CRYPTO_REF: "74980d6453b71bc6eac9639416e0ec96df971ba9"
+          # mx.crypto 0.3.0, the CRAN release with Matrix v2 attachment primitives.
+          MX_CRYPTO_REF: "2fc2d5e1c3716086a5f5a75342037882ed8e4440"
         run: |
           Rscript -e 'install.packages(c("curl", "jsonlite"))'
           Rscript .github/install-matrix-deps.R

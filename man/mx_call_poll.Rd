@@ -35,3 +35,11 @@ but they reach the callback late. A program that needs prompt audio
 on such a server should sync from another process or thread.
 
 }
+\examples{
+\dontrun{
+# Drive a live call for 30 seconds, then leave:
+until <- Sys.time() + 30
+while (Sys.time() < until) mx_call_poll(call)
+mx_call_leave(call)
+}
+}

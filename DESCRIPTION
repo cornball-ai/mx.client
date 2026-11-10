@@ -22,14 +22,15 @@ Depends:
     R (>= 4.0)
 Imports:
     jsonlite,
-    mx.api (>= 0.3.1.1),
+    mx.api (>= 0.4.0),
     stats,
     tools,
     utils
 Suggests:
     livekitr,
-    mx.crypto (>= 0.2.2.2),
+    mx.crypto (>= 0.3.0),
     simplermarkdown,
     tinytest
+Additional_repositories: https://cornball-ai.github.io/drat
 VignetteBuilder: simplermarkdown
 Encoding: UTF-8
