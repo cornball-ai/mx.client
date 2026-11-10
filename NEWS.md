@@ -1,21 +1,7 @@
 # mx.client 0.3.0
 
-## MatrixRTC calls
+## Encrypted to-device events
 
-* New: `mx_call_join()`, `mx_call_handle()`, `mx_call_poll()`,
-  `mx_call_connect()` and `mx_call_leave()` run a MatrixRTC call over
-  LiveKit the way Element Call and FluffyChat do: a per-device
-  `org.matrix.msc3401.call.member` state event, a media token from the
-  LiveKit JWT service, and per-participant media keys exchanged as
-  `io.element.call.encryption_keys` events, with their key rotation
-  policy. `mx_call_members()`, `mx_call_service_url()`,
-  `mx_call_key_parse()` and `mx_call_key_plan()` expose the pieces.
-* Media goes through the optional `livekitr` package (Suggests), available
-  from <https://cornball-ai.github.io/drat/>. The Matrix side of a call
-  (`mx_call_join(connect = FALSE)`) works without it.
-* Call keys are read and sent both ways clients use: Olm-encrypted
-  to-device events (Element Call) and encrypted room events (FluffyChat /
-  matrix-dart-sdk). `keys` is handled as an array of `{index, key}`.
 * New: `mx_send_to_device_encrypted()` and `mx_crypto_encrypt_to_device()`
   send an Olm-encrypted to-device event of any type.
 * `mx_crypto_process_sync()` returns decrypted Olm to-device events other
@@ -59,8 +45,6 @@
 
 ## Dependencies
 
-* Requires mx.api 0.4.0 for the OpenID, RTC transport, LiveKit token and
-  room-state endpoints.
 * Raise the optional mx.crypto floor to 0.3.0, which adds the attachment
   primitives. Unencrypted client operations still work without mx.crypto.
 

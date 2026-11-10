@@ -1,15 +1,6 @@
 # tinyrox says don't edit this manually, but it can't stop you!
 
 export(mx_accept_invites)
-export(mx_call_connect)
-export(mx_call_handle)
-export(mx_call_join)
-export(mx_call_key_parse)
-export(mx_call_key_plan)
-export(mx_call_leave)
-export(mx_call_members)
-export(mx_call_poll)
-export(mx_call_service_url)
 export(mx_client_config_path)
 export(mx_client_configure)
 export(mx_client_from_config)
@@ -77,5 +68,4 @@ export(mx_upload_encrypted)
 export(mx_verify_console)
 export(mx_with_relogin)
 
-S3method(print,mx_call)
 S3method(print,mx_client_config)
