@@ -42,6 +42,12 @@ All local checks used a library built from CRAN source packages only.
 * The same check with mx.crypto absent. Status: OK.
 * Installed test suite with an empty HOME: 873 assertions passed and no
   file was written under HOME.
+* win-builder, Windows Server 2022, R-release 4.6.2: Status: OK, 872
+  test assertions passed.
+* win-builder R-devel (2026-11-07 r90850) installed the package and built
+  a binary, but its check log stopped at the incoming feasibility step
+  and reported no result.
+* GitHub Actions, ubuntu-latest and macos-latest, R 4.6: Status: OK.
 * R-oldrelease was not checked for this release.
 
 ## Reverse dependencies
