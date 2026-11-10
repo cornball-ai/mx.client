@@ -1,15 +1,46 @@
-# mx.client 0.2.1.4
+# mx.client 0.3.0
 
-- Add encrypted attachment upload and verified download helpers using
-  mx.crypto's Matrix v2 primitives. Uploads expose only ciphertext with a
-  generic filename; downloads verify integrity before replacing the destination.
-- Refuse plaintext `mx_send_media()` uploads to encrypted rooms before
-  transferring any file. Callers retain ownership of their live crypto sessions
-  and send the returned attachment metadata through `mx_send_encrypted()`.
+## MatrixRTC calls
 
-# mx.client 0.2.1.3
+* New: `mx_call_join()`, `mx_call_handle()`, `mx_call_poll()`,
+  `mx_call_connect()` and `mx_call_leave()` run a MatrixRTC call over
+  LiveKit the way Element Call and FluffyChat do: a per-device
+  `org.matrix.msc3401.call.member` state event, a media token from the
+  LiveKit JWT service, and per-participant media keys exchanged as
+  `io.element.call.encryption_keys` events, with their key rotation
+  policy. `mx_call_members()`, `mx_call_service_url()`,
+  `mx_call_key_parse()` and `mx_call_key_plan()` expose the pieces.
+* Media goes through the optional `livekitr` package (Suggests), available
+  from <https://cornball-ai.github.io/drat>. The Matrix side of a call
+  (`mx_call_join(connect = FALSE)`) works without it.
+* Call keys are read and sent both ways clients use: Olm-encrypted
+  to-device events (Element Call) and encrypted room events (FluffyChat /
+  matrix-dart-sdk). `keys` is handled as an array of `{index, key}`.
+* New: `mx_send_to_device_encrypted()` and `mx_crypto_encrypt_to_device()`
+  send an Olm-encrypted to-device event of any type.
+* `mx_crypto_process_sync()` returns decrypted Olm to-device events other
+  than room keys and verification messages in a new `to_device` element,
+  and keeps each decrypted room event's `type` and `content`.
+* `mx_send_encrypted()` gains an `event_type` argument.
 
-* Fix: keep every inbound Olm session per peer, not just the latest. A
+## Encrypted media
+
+* New: `mx_upload_encrypted()` and `mx_download_encrypted()` use
+  mx.crypto's Matrix v2 attachment primitives. Uploads expose only
+  ciphertext with a generic filename; downloads verify integrity before
+  replacing the destination.
+* `mx_send_media()` refuses a plaintext upload to an encrypted room before
+  transferring any file. Callers retain ownership of their live crypto
+  sessions and send the returned attachment metadata through
+  `mx_send_encrypted()`.
+
+## Fixes
+
+* `mx_set_displayname()` returns the client it used, invisibly, in place
+  of `TRUE`. After a relogin that is the refreshed client, so the caller
+  can keep the new token (#18). `?mx_with_relogin` now states that the
+  refreshed config is saved before the retry.
+* Keep every inbound Olm session per peer, not just the latest. A
   peer can open several Olm sessions to us over its lifetime and reply on
   any of them; the single inbound slot per peer was overwritten by each
   new session, so a message sent on a session we had replaced could not be
@@ -26,45 +57,12 @@
   `create_inbound` error for a failed prekey, so a dropped message is
   diagnosable instead of silent.
 
-# mx.client 0.2.1.2
+## Dependencies
 
-* Fix: make MatrixRTC call encryption keys actually work, found during
-  the first live FluffyChat-to-bot call (the bot heard only undecryptable
-  silence).
-  - `keys` is an array of `{index, key}`, not a single object;
-    `mx_call_key_content()` and `mx_call_key_parse()` treated it as one,
-    so real key events (parsed off the wire with `simplifyVector =
-    FALSE`) were dropped. The parser now reads the array and returns one
-    entry per key.
-  - FluffyChat / matrix-dart-sdk sends the key as an encrypted ROOM
-    event (top-level `device_id`), not to-device. `mx_crypto_process_sync()`
-    now keeps each decrypted room event's `type` and `content`,
-    `mx_call_handle()` reads call keys from `processed$events` as well as
-    `to_device`, and `mx_call_key_parse()` accepts the room-event shape
-    (top-level `device_id`, room taken from the event).
-  - `mx_call_send_key()` also posts the key as an encrypted room event so
-    FluffyChat can decrypt the bot; `mx_send_encrypted()` gained an
-    `event_type` argument.
-
-# mx.client 0.2.1.1
-
-## MatrixRTC calls
-
-* New: `mx_call_join()`, `mx_call_handle()`, `mx_call_poll()`,
-  `mx_call_connect()` and `mx_call_leave()` run a MatrixRTC call over
-  LiveKit the way Element Call and FluffyChat do: a per-device
-  `org.matrix.msc3401.call.member` state event, a media token from the
-  LiveKit JWT service, and per-participant media keys exchanged as
-  Olm-encrypted `io.element.call.encryption_keys` to-device events, with
-  their key rotation policy. Media goes through the `livekitr` package
-  (Suggests). `mx_call_members()`, `mx_call_service_url()`,
-  `mx_call_key_parse()` and `mx_call_key_plan()` expose the pieces.
-* New: `mx_send_to_device_encrypted()` and `mx_crypto_encrypt_to_device()`
-  send an Olm-encrypted to-device event of any type.
-* `mx_crypto_process_sync()` returns decrypted Olm to-device events other
-  than room keys and verification messages in a new `to_device` element.
-* Requires mx.api 0.3.1.1 for the OpenID, RTC transport, LiveKit token and
+* Requires mx.api 0.4.0 for the OpenID, RTC transport, LiveKit token and
   room-state endpoints.
+* Raise the optional mx.crypto floor to 0.3.0, which adds the attachment
+  primitives. Unencrypted client operations still work without mx.crypto.
 
 # mx.client 0.2.1
 
