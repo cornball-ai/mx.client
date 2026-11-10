@@ -11,7 +11,7 @@
   policy. `mx_call_members()`, `mx_call_service_url()`,
   `mx_call_key_parse()` and `mx_call_key_plan()` expose the pieces.
 * Media goes through the optional `livekitr` package (Suggests), available
-  from <https://cornball-ai.github.io/drat>. The Matrix side of a call
+  from <https://cornball-ai.github.io/drat/>. The Matrix side of a call
   (`mx_call_join(connect = FALSE)`) works without it.
 * Call keys are read and sent both ways clients use: Olm-encrypted
   to-device events (Element Call) and encrypted room events (FluffyChat /

@@ -57,7 +57,11 @@ with mx.api 0.4.0 and without livekitr.
 * The same check with mx.crypto also absent. Status: OK.
 * Installed test suite with an empty HOME: 986 assertions passed and no
   file was written under HOME.
-* Windows, macOS, and R-oldrelease were not checked for this release.
+* win-builder, Windows Server 2022, R-release 4.6.2: Status: 1 NOTE, the
+  livekitr NOTE described above. That run also reported a redirect for
+  the drat URL in NEWS.md, which now has its trailing slash.
+* GitHub Actions, ubuntu-latest and macos-latest, R 4.6: Status: OK.
+* R-oldrelease was not checked for this release.
 
 ## Reverse dependencies
 
